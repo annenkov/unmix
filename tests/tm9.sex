@@ -1,0 +1,37 @@
+;; File: TM9.SEX
+
+;; Some tests!!!
+
+(define (arg)
+  (match
+    (arg)
+    (_ => arg)
+    (x => x)
+  ))
+
+(define (thru arg)
+  (match
+    (arg)
+    
+    (x & (symbol? x) => x)
+    
+    ((_ . rest) => (thru rest))
+    
+    ))
+
+(define (a-x arg)
+  (match
+    ((cdr arg))
+    
+    ((z as ('a x)) => `(,z (a ,x)))
+    
+    ))
+
+(with (( (u . v) (lookup-variable uv) ))
+  (cons u v))
+
+(with* (( (z as (999 x)) arg)
+        ( (u . v)        uv))
+  `(,u ,v ,z (999 ,x))
+  )
+

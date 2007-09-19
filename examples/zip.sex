@@ -1,0 +1,13 @@
+;; File: zip.sex
+
+;; This is an example program to be specialized.
+
+(define (start x y)
+  (zipper x y))
+
+(define (zipper x y)
+  (cond ((null? x) y)
+        ((null? y) x)
+        (else
+          `(,(car x) ,(car y) . ,(zipper (cdr x) (cdr y))))))
+

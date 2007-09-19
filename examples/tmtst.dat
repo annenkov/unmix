@@ -1,0 +1,14 @@
+;; File: tmtst.dat
+
+;; This is an example program for Turing's machine interpreter
+;; in the file "ztm.s".
+
+(
+  (if a 3)            ; 0
+  (write b)           ; 1
+  (goto 5)            ; 2
+  right               ; 3
+  (goto 0)            ; 4
+)
+
+

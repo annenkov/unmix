@@ -1,0 +1,267 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                 ;;
+;;  File:     xfcd.sex                                             ;;
+;;  Project:  the specializer Unmix                                ;;
+;;  Author:   S.A.Romanenko, the Institute for Applied             ;;
+;;            Mathematics, the USSR Acedemy of Sciences,           ;;
+;;            Moscow.                                              ;;
+;;  Credits:  Some parts of the program have been taken            ;;
+;;            from the specializer Mix made by Peter Sestoft       ;;
+;;            and N.C.Kehler Holst (The Mix Group),                ;;
+;;            mix@diku.UUCP, at the University of Copenhagen.      ;;
+;;  Created:  5 May 1989                                           ;;
+;;  Revised:  6 April 1990                                         ;;
+;;            July 1990                                            ;;
+;;                                                                 ;;
+;;  Contents: The phase of the Annotator                           ;;
+;;            that finds a congruent division of data              ;;
+;;            into static and dynamic parts.                       ;;
+;;                                                                 ;;
+;;  Synopsis:                                                      ;;
+;;            (find-congruent-division prog descr)                 ;;
+;;                                                                 ;;
+;;            prog   - a Mixwell program                           ;;
+;;            descr  - a list of atoms "s" and "d"                 ;;
+;;                                                                 ;;
+;;  Description:                                                   ;;
+;;            The program finds a congruent division of data       ;;
+;;            into static and dinamic parts for                    ;;
+;;            the Mixwell program "prog".                          ;;
+;;                                                                 ;;
+;;            The sequence of indicators in "descr" tells          ;;
+;;            for the variable in the corresponding place          ;;
+;;            in the parameter list of the goal function           ;;
+;;            whether its value is supposed to be static           ;;
+;;            ("known") or dynamic ("unknown") at partial          ;;
+;;            evaluation time.                                     ;;
+;;                                                                 ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; Some comments see in the file xsepsd.s ...
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                 ;;
+;;              Finding a Congruent Division of Data               ;;
+;;                 into Static and Dynamic Parts                   ;;
+;;                                                                 ;;
+;;  Global effect: evaluate a program over an abstract domain      ;;
+;;  (s,d), where s = static and d = dynamic, to produce            ;;
+;;  a description of the program with all function parameters      ;;
+;;  classified as:                                                 ;;
+;;    s (static)  - if it depends only on available data, or       ;;
+;;    d (dynamic) - if it might depend on unavailable data.        ;;
+;;                                                                 ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;
+;; Given a description of the goal function's parameters,
+;; returns a description of all functions in "prog"
+;; (i.e. a set of meta-configurations).
+;;
+
+(define (ufcd:find-congruent-division prog descr)
+
+  (define meta-confs #f)            ;; A list of meta-configurations.
+  (define meta-confs-modified? #f)  ;; A flag to stop iterations.
+
+  ;;
+  ;; Collects all meta-configurations that result from
+  ;; the program "prog" and the description "mc" and
+  ;; updates "mc".
+  ;;
+
+  (define (collect-mc-prog!)
+    (for-each
+      (lambda (fundef)
+        (with* (( (fname pars _ body)   fundef )
+                ( (_ args . res)  (assq fname meta-confs) )
+                )
+               (update-mc! fname args (abstract-eval body pars args))
+               (collect-mc! body pars args)))
+      prog
+      ))
+
+  ;;
+  ;; Collects all meta-configurations that result from
+  ;; the expression "exp" and the description "mc" in the
+  ;; abstract environment (vn,vv) and updates "mc".
+  ;;
+
+  (define (collect-mc! exp vn vv)
+    (select
+      (exp)
+
+      (_
+        & (symbol? exp) => #f)
+
+      (('quote exp) => #f)
+
+      ((call? . fname_exp*)
+       & (memq call? '(call rcall)) =>
+       (with* (( (fname . exp*) fname_exp* )
+               ( _ (collect-mc*! exp* vn vv))
+               (args (abstract-eval* exp* vn vv))
+               (res  (lub-list args))
+               )
+             (update-mc! fname args res)))
+
+      (('xcall fname . exp*) =>
+       (collect-mc*! exp* vn vv))
+
+      ((op . exp*) =>
+       (collect-mc*! exp* vn vv))
+
+      ))
+
+  ;;
+  ;; Iterates the function "collect-mc" on "exp*".
+  ;;
+
+  (define (collect-mc*! exp* vn vv)
+    (for-each (lambda (exp) (collect-mc! exp vn vv)) exp*))
+
+  ;;
+  ;;  Abstract evaluation of an expression.
+  ;;  Returns an indicator, computed as the result of doing
+  ;;  abstract interpretation of "exp" in the environment where
+  ;;  the names of "vn" are bound to the corresponding values
+  ;;  of "vv". "mc" is used to get abstract values of the function
+  ;;  calls appearing in "exp".
+  ;;
+
+  (define (abstract-eval exp vn vv)
+    (select
+      (exp)
+
+      (_
+        & (symbol? exp) =>
+        (lookup-variable exp vn vv))
+
+      (('quote exp) => 's)
+
+      (('generalize exp) => 'd)
+
+      ((call? . fname_exp*)
+       & (memq call? '(call rcall)) =>
+       (with* (( (fname . exp*) fname_exp* )
+	       ( (_ fargs . fres)  (assq fname meta-confs) ))
+	      fres))
+
+      (('xcall fname . exp*) =>
+       (lub-list (abstract-eval* exp* vn vv)))
+
+      ((op . exp*) =>
+       (lub-list (abstract-eval* exp* vn vv)))
+
+      ))
+
+  ;;
+  ;; Iterates the function "abstract-eval" on "exp*".
+  ;;
+
+  (define (abstract-eval* exp* vn vv)
+    (map (lambda (exp) (abstract-eval exp vn vv)) exp*))
+
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;                                                                 ;;
+  ;;                 Least Upper Bound Computation                   ;;
+  ;;                                                                 ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+  ;;
+  ;; Returns lub of two indicators.
+  ;;
+
+  (define (lub ind1 ind2)
+    (if (eq? ind1 'd) 'd ind2))
+
+  ;;
+  ;; Returns the lub of a list of indicators.
+  ;;
+
+  (define (lub-list ind*)
+    (if (memq 'd ind*) 'd 's))
+
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;                                                                 ;;
+  ;;                     Description Handling                        ;;
+  ;;                                                                 ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  ;;
+  ;; Returns a new description where all parameters and
+  ;; results are classified as s (static).
+  ;;
+
+  (define (initial-meta-confs prog)
+    (map
+      (lambda (fundef)
+        (with (( (fname fpars _ _)  fundef ))
+              `(,fname ,(map (lambda (par) 's) fpars) . s)))
+      prog))
+
+  ;;
+  ;; Updates the description of the function "fname" in "meta-confs".
+  ;; The new parameter description is obtained by computing
+  ;; the least upper bound of the old parameter description and
+  ;; "fargs". The new result description is obtained by computing
+  ;; the least upper bound of all the indicators in the new
+  ;; parameter description.
+  ;;
+
+  (define (update-mc! fname args res)
+    (with* (( fdescr  (assq fname meta-confs) )
+            ( (_ args1 . res1)  fdescr )
+            ( lub-args  (map lub args args1) )
+            ( lub-res   (lub res res1) )
+            )
+           (when (or (not (equal? lub-args args1))
+                     (not (equal? lub-res res1)))
+                 (set-cdr! fdescr
+                    `(,lub-args . ,lub-res))
+                 (set! meta-confs-modified? #t))))
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;                                                                 ;;
+  ;;                    Environment Handling                         ;;
+  ;;                                                                 ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  ;;
+  ;; Returns the value of the variable "vname" in the environment
+  ;; (vn,vv).
+  ;;
+
+  (define (lookup-variable vname vn vv)
+    (select
+      (vn vv)
+
+      (() () =>
+       (error "Undefined variable: " vname))
+
+      ((vn . nrest) (vv . vrest) =>
+       (if (eq? vname vn)
+           vv
+           (lookup-variable vname nrest vrest)))
+
+      ))
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;  (ufcd:find-congruent-division prog descr)  ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  (with* (( ((fname . _) . prog-rest)  prog ))
+         (set! meta-confs
+               `((,fname ,descr . ,(lub-list descr))
+                 . ,(initial-meta-confs prog-rest))
+               ))
+  (let recalc-mc! ()
+    (display "*")
+    (set! meta-confs-modified? #f)
+    (collect-mc-prog!)
+    (if meta-confs-modified?
+        (recalc-mc!)
+        meta-confs)))

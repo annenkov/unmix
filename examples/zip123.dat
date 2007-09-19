@@ -1,0 +1,7 @@
+
+;; File: zip123.dat
+
+;; This file contains data for specializing
+;; example programs in files "zzip.s" and "maxcs.s".
+
+(1111 2222 3333)

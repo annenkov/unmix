@@ -1,0 +1,53 @@
+;; File: tm.sex
+
+;; This is an example program to be specialized.
+
+;;
+;; An interpreter for Turing's machines.
+;;
+
+(define (tm pgm left curr right)
+  (rcall (run-seq pgm pgm left curr right))
+  )
+
+(define (run-seq pgm tail left curr right)
+  (select
+    (tail)
+
+    (() => `(,left ,curr ,right))
+
+    ((stm . rest) =>
+      (run-stm pgm stm rest left curr right))
+
+     ))
+
+(define (run-stm pgm stm tail left curr right)
+  (select
+    (stm)
+
+    ('right =>
+            (if (null? right)
+                (run-seq pgm tail `(,curr . ,left) '() '())
+                (run-seq pgm tail `(,curr . ,left) (car right) (cdr right))
+                ))
+
+    ('left =>
+           (if (null? left)
+               (run-seq pgm tail '() '() `(,curr . ,right))
+               (run-seq pgm tail (cdr left) (car left) `(,curr . ,right))
+               ))
+
+    (('write a) =>
+     (run-seq pgm tail left a right))
+
+    (('goto i) =>
+     (run-seq pgm (list-tail pgm i) left curr right))
+
+    (('if a i) =>
+     (if (equal? a curr)
+         (run-seq pgm (list-tail pgm i) left curr right)
+         (run-seq pgm tail left curr right)
+         ))
+
+    ))
+

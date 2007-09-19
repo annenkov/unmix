@@ -1,0 +1,133 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                 ;;
+;;  File:     xensg.scm                                            ;;
+;;  Project:  the specializer Unmix                                ;;
+;;  Author:   S.A.Romanenko, the Institute for Applied             ;;
+;;            Mathematics, the USSR Acedemy of Sciences,           ;;
+;;            Moscow.                                              ;;
+;;  Created:  5 August 1990                                        ;;
+;;  Revised:  December 1992                                        ;;
+;;                                                                 ;;
+;;  Contents: A compiler from Mixwell to Scheme.                   ;;
+;;                                                                 ;;
+;;  Synopsis:                                                      ;;
+;;            (uensg:main src dst prog)                            ;;
+;;                                                                 ;;
+;;            src   - source program name                          ;;
+;;            dst   - destination program name                     ;;
+;;            prog  - a Mixwell program                            ;;
+;;                                                                 ;;
+;;  Description:                                                   ;;
+;;            Compiles the Mixwell program "prog"                  ;;
+;;            into Scheme program.                                 ;;
+;;                                                                 ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+(define (uensg:main src dst prog)
+
+  ;;
+  ;; Translates a Mixwell program into a Scheme program.
+  ;; There should'n be any need for a thorough syntax check
+  ;; since the input programs are (usually) produced by other
+  ;; programs, which in turn are expected to produce
+  ;; well-formed code.
+  ;;
+
+  (define (ensugar prog)
+    (map compile-fundef prog))
+
+  (define (compile-fundef fundef)
+    (with (( (fname parlist '= body)  fundef ))
+          `(define (,fname ,@parlist) ,(compile-exp body))
+          ))
+
+  (define (compile-exp exp)
+    (select
+      (exp)
+
+      (_ & (symbol? exp) => exp)
+
+      (('quote const) =>
+       (if (literal? const) const exp))
+
+      (('car exp1) =>
+       (*extend-syntax-add-car* (compile-exp exp1)))
+
+      (('cdr exp1) =>
+       (*extend-syntax-add-cdr* (compile-exp exp1)))
+
+      (('cons exp1 exp2) =>
+       (compile-cons (compile-exp exp1)
+                     (compile-exp exp2)))
+
+      (('if exp1 exp2 exp3) =>
+       (compile-if
+         (compile-exp exp1)
+         (compile-exp exp2)
+         (compile-exp exp3)))
+
+      (('call fname . exp*) =>
+       `(,fname . ,(map compile-exp exp*)))
+
+      (('rcall fname . exp*) =>
+       `(rcall (,fname . ,(map compile-exp exp*))))
+
+      (('xcall fname . exp*) =>
+       `(,fname . ,(map compile-exp exp*)))
+
+      ((fname . exp*) =>
+       `(,fname . ,(map compile-exp exp*)))
+
+      ))
+
+  (define (compile-cons exp1 exp2)
+    (list 'quasiquote
+          (cons (make-unquote exp1) (make-unquote exp2))))
+
+  (define (make-unquote exp)
+    (match
+      (exp)
+
+      (_ & (literal? exp) => exp)
+
+      (('quote c) => c)
+
+      (('quasiquote c) => c)
+
+      (_ => (list 'unquote exp))
+
+      ))
+
+  (define (compile-if exp0 exp1 exp2)
+    (match
+      (exp2)
+
+      (('if p a b) =>
+       `(cond (,exp0 ,exp1) (,p ,a) (else ,b)))
+
+      (('cond . clause*) =>
+       `(cond (,exp0 ,exp1) . ,clause*))
+
+      (_ =>
+         `(if ,exp0 ,exp1 ,exp2))
+
+      ))
+
+  (define (literal? x)
+    (or (boolean? x)
+        (number? x)
+        (char? x)
+        (string? x)))
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;  (uensg:main src dst prog)  ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  (newline)
+  (display  "-- Ensugaring:  ") (display src) (display " -> ") (display dst)
+  (newline)
+  (set! prog (ensugar prog))
+  (display "-- Done --") (newline)
+  prog)
+

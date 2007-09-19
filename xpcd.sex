@@ -1,0 +1,546 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                 ;;
+;;  File:     xpcd.s                                               ;;
+;;  Project:  the specializer Unmix                                ;;
+;;  Author:   S.A.Romanenko, the Institute for Applied             ;;
+;;            Mathematics, the USSR Acedemy of Sciences,           ;;
+;;            Moscow.                                              ;;
+;;  Created:  20 May 1989                                          ;;
+;;  Revised:  4 April 1990                                         ;;
+;;            August 1990                                          ;;
+;;                                                                 ;;
+;;  Contents: The second phase of the Call Annotator               ;;
+;;            that prevents duplication of function calls.         ;;
+;;                                                                 ;;
+;;  Synopsis:                                                      ;;
+;;            (upcd:prevent-call-duplication! prog)                ;;
+;;                                                                 ;;
+;;            prog  - an annotated Mixwell program                 ;;
+;;                                                                 ;;
+;;  Description:                                                   ;;
+;;            The program makes call annotations that guarantee    ;;
+;;            absence of call duplication. It finds all function   ;;
+;;            calls unfolding if which may cause call duplication  ;;
+;;            and makes them residual.                             ;;
+;;                                                                 ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+;;  Data structures used during Call Duplication Risk Analysis:
+;;  ==========================================================
+;;
+;;  Description:
+;;
+;;    <Description>       ::= ( <MetaConfiguration>* )
+;;    <MetaConfiguration> ::= ( <Fname> <ParDescr> . <ResDescr> )
+;;    <ParDescr>          ::= ( <Indicator>* )
+;;    <ResDescr>          ::= <Indicator>
+;;    <Indicator>         ::= e | c
+;;
+;;      A description is a list of meta-configurations, where each
+;;    meta-configuration consists of the name of the function,
+;;    the parameter's desctiption, and the result's description.
+;;      An indicator in the parameter's description tells whether
+;;    the parameter in the corresponding place in the function's
+;;    parameter list may contain a call (c) or cannot (e).
+;;      An indicator in the result's description tells whether
+;;    the result of partially evaluating a call of the function
+;;    may contain a call (c) or cannot (e).
+;;      Thus a meta-configuration represents a class of computational
+;;    configurations that may be produced by the partial evaluator
+;;    when the program will be used to generate a residual program.
+
+
+;;  Naming conventions:
+;;  ==================
+;;
+;;    prog        - the Mixwell program to analyze.
+;;    descr       - a description
+;;    vn          - a list of variable names.
+;;    vv          - a list of abstract values (call descriptions)
+;;                  corresponding to the variables found in "vn".
+
+
+;;  A note on the algorithm used:
+;;  ============================
+;;
+;;      The core of this subphase is a duplication risk analysis
+;;  that checks every eliminable call in the following way. Each
+;;  argument expression is checked to see whether its symbolic
+;;  value (during partial evaluation) may be an expression
+;;  containing a call as a subexpression. If there is an argument
+;;  expression with this property for which the corresponding
+;;  variable (in the function called by the eliminable call) appears
+;;  twice or more in the same conditional branch of the called
+;;  function's body, then there is a call duplication risk. Whenever
+;;  such a risk is discovered, the eliminable call is made residual,
+;;  and the duplication risk analysis is done over again.
+;;      Deciding whether the symbolic value of an argument expression
+;;  (during the partial evaluation) may contain a call requires
+;;  a call abstract interpretation, which is a global analysis of
+;;  the subject program (including annotated calls).
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                 ;;
+;;                        Main Function                            ;;
+;;                                                                 ;;
+;; Global effect: Replaces some keywords "call" with "rcall"       ;;
+;; in a program in order to avoid call duplication risk.           ;;
+;;                                                                 ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define (upcd:prevent-call-duplication! prog)
+
+  ;;
+  ;; Main loop:
+  ;; While there is a danger of call duplication
+  ;;    finds a call that may cause call duplication
+  ;;    and makes it residual.
+  ;;
+
+  (define (pcd-loop! prog)
+    (display "Abstract Call Interpretation... Iterations: ")
+    (let ((descr  (abstract-call-interpretation prog)))
+      (newline)
+      ;(display "Call Description:") (newline)
+      ;(write descr) (newline)
+      (let ((program-modified?  (make-rcall-prog! prog descr)))
+        (if program-modified?
+            (begin
+              (display
+                "Some \"call(s)\" has (have) been replaced with \"rcall(s)\"")
+              (newline)
+              (pcd-loop! prog))
+            (begin
+              (display "There is no call duplication risk") (newline)
+              prog)))))
+
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;                                                                 ;;
+  ;;                  Abstract Call Interpretation                   ;;
+  ;;                                                                 ;;
+  ;;  Global effect: evaluate a program over an abstract domain      ;;
+  ;;  (e,c) to produce a description of the program with all         ;;
+  ;;  function parameters classified as:                             ;;
+  ;;                                                                 ;;
+  ;;    e  - if it can't be bound to an expression that contains     ;;
+  ;;         a call                                                  ;;
+  ;;    c  - if it may be bound to an expression that contains       ;;
+  ;;         a call                                                  ;;
+  ;;                                                                 ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+  ;;
+  ;; Abstract interpretation of the program "prog" to find
+  ;; parameters that might be bound to function calls
+  ;; during partial evaluation.
+  ;;
+
+  (define (abstract-call-interpretation prog)
+
+    (define descr #f)
+    (define descr-modified? #f)
+
+    ;;
+    ;; Collects all argument's abstract values that result from
+    ;; the program "prog" and the description "descr", and
+    ;; updates "descr".
+    ;;
+
+    (define (collect-c-args-prog!)
+      (for-each
+        (lambda (fundef)
+          (with* (( (fname svn dvn _ body)  fundef )
+                  ( (_ dvv . _)  (assq fname descr) )
+                  )
+                 (collect-c-args! body dvn dvv)))
+        prog))
+
+    ;;
+    ;; Collects all argument's abstract values that result from
+    ;; the expression "exp" and the description "descr" in the
+    ;; abstract environment (vn,vv) and updates "descr".
+    ;;
+
+    (define (collect-c-args! exp vn vv)
+      (select
+        (exp)
+
+        (_ & (symbol? exp) => #f)
+
+        (('static _) => #f)
+
+        (('ifs _ . exp*) =>
+         (collect-c-args*! exp* vn vv))
+
+        (('ifd . exp*) =>
+         (collect-c-args*! exp* vn vv))
+
+        (('call fname s-exp* d-exp*) =>
+         (let ((descr  (collect-c-args*! d-exp* vn vv))
+               (arg*  (c-eval* d-exp* vn vv descr)))
+           (update-c-args! fname arg*)))
+
+        (('rcall fname s-exp* d-exp*) =>
+         (collect-c-args*! d-exp* vn vv))
+
+        (('xcall fname . exp*) =>
+         (collect-c-args*! exp* vn vv))
+
+        ((op . exp*) =>
+         (collect-c-args*! exp* vn vv))
+
+        (_ =>
+           (error "Malformed expression: " exp))
+
+        ))
+
+    ;;
+    ;; Iterates the function "collect-c-args!" on "exp*".
+    ;;
+
+    (define (collect-c-args*! exp* vn vv)
+      (for-each (lambda (exp) (collect-c-args! exp vn vv)) exp*))
+
+    ;;
+    ;; Reculculates all function's results in the description
+    ;; "descr".
+    ;;
+
+    (define (collect-c-results-prog!)
+      (map
+        (lambda (fundef)
+          (with* (( (fname svn dvn _ body)  fundef )
+                  ( (_ dvv . _)  (assq fname descr) )
+                  ( res    (c-eval body dvn dvv descr) )
+                  )
+                 (update-c-result! fname res)))
+        prog))
+
+    ;;
+    ;; Returns an initial descriptions with all indicators
+    ;; set to 'e.
+    ;;
+
+    (define (initial-c-descr)
+      (map
+        (lambda (fundef)
+          (with (( (fname svn dvn _ _)  fundef ))
+                `(,fname ,(map (lambda (par) 'e) dvn) . e)
+                ))
+        prog))
+
+    ;;
+    ;; Updates the parameter description of the function
+    ;; "fname". The new parameter description is obtained by
+    ;; computing the least upper bound of the old parameter
+    ;; description and "args".
+    ;;
+
+    (define (update-c-args! fname args)
+      (with* (( (_ . fdescr)  (assq fname descr) )
+              ( (args1 . res1)  fdescr )
+              ( lub-args  (lub* args args1) )
+              )
+             (when (not (equal? lub-args args1))
+                   (set-car! fdescr lub-args)
+                   (set! descr-modified? #t))))
+
+    ;;
+    ;; Updates "descr" with the result description of the function
+    ;; "fname". The new result description is obtained by
+    ;; computing the least upper bound of the old result description
+    ;; and "res".
+    ;;
+
+    (define (update-c-result! fname res)
+      (with* (( (_ . fdescr)  (assq fname descr) )
+              ( (args1 . res1)  fdescr )
+              ( lub-res  (lub res res1) )
+              )
+             (when (not (equal? lub-res res1))
+                   (set-cdr! fdescr lub-res)
+                   (set! descr-modified? #t))))
+
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    ;;  (abstract-call-interpretation prog)  ;;
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+    (set! descr (initial-c-descr))
+    (let recalc-c-descr ()
+      (display "*")
+      (set! descr-modified? #f)
+      (collect-c-args-prog!)
+      (collect-c-results-prog!)
+      (if descr-modified?
+          (recalc-c-descr)
+          descr)))
+
+  ;;
+  ;;  Abstract evaluation of an expression.
+  ;;  Returns a type, computed as the result of doing
+  ;;  abstract interpretation of "exp" in the environment where
+  ;;  the names of "vn" are bound to the corresponding values
+  ;;  of "vv". "descr" is used to get abstract values of the function
+  ;;  calls appearing in "exp".
+  ;;
+
+  (define (c-eval exp vn vv descr)
+    (select
+      (exp)
+
+      (_ & (symbol? exp) =>
+         (lookup-variable exp vn vv))
+
+      (('static _) => 'e)
+
+      (('ifs _ . exp*) =>
+       (lub-list (c-eval* exp* vn vv descr)))
+
+      (('ifd . exp*) =>
+       (lub-list (c-eval* exp* vn vv descr)))
+
+      (('call fname s-exp* d-exp*) =>
+       (with (( (_ _ . res)  (assq fname descr) ))
+             (lub res
+                  (lub-list (c-eval* d-exp* vn vv descr)))))
+
+      (('rcall fname s-exp* d-exp*) => 'c)
+
+      (('xcall fname . exp*) =>
+       (lub-list (c-eval* exp* vn vv descr)))
+
+      ((op . exp*) =>
+       (lub-list (c-eval* exp* vn vv descr)))
+
+      ))
+
+  ;;
+  ;; Iterates the function "c-eval" on "exp*".
+  ;;
+
+  (define (c-eval* exp* vn vv descr)
+    (map (lambda (exp) (c-eval exp vn vv descr)) exp*))
+
+  ;;
+  ;; Returns the value of the variable "vname" in the environment
+  ;; (vn,vv).
+  ;;
+
+  (define (lookup-variable vname vn vv)
+    (select
+      (vn vv)
+
+      (() () => (error "Undefined variable: " vname))
+
+      ((vn . nrest) (vv . vrest) =>
+       (if (eq? vname vn)
+           vv
+           (lookup-variable vname nrest vrest)))
+
+      ))
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;                                                                 ;;
+  ;;                 Least Upper Bound Computation                   ;;
+  ;;                                                                 ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  ;;
+  ;; Returns lub of two indicators.
+  ;;
+
+  (define (lub ind1 ind2)
+    (if (eq? ind1 'c) 'c ind2))
+
+  ;;
+  ;; Returns the component-wise lub of two lists of
+  ;; indicators.
+  ;;
+
+  (define (lub* ind1* ind2*)
+    (map lub ind1* ind2*))
+
+  ;;
+  ;; Returns the lub of a list of indicators.
+  ;;
+
+  (define (lub-list ind*)
+    (if (memq 'c ind*) 'c 'e))
+
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;                                                                 ;;
+  ;;        Finding a Dangerous Call and Making It Residual          ;;
+  ;;                                                                 ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  ;;
+  ;; Tries to find calls unfolding of which might lead
+  ;; to call duplication. If such calls are found, replaces
+  ;; "call" with "rcall" in them (by destructive updating) and
+  ;; returns #t, otherwise returns #f.
+  ;;
+
+  (define (make-rcall-prog! prog descr)
+
+    (define dupl #f)
+    (define program-modified? #f)
+
+    (define (make-rcall-func*!)
+      (for-each (lambda (fundef) (make-rcall-func! fundef)) prog))
+
+    (define (make-rcall-func! fundef)
+      (with* (( (fname svn dvn _ body)  fundef )
+              ( (_ dvv . _)  (assq fname descr) )
+              )
+             (make-rcall! body dvn dvv)))
+
+    (define (make-rcall! exp vn vv)
+      (select
+        (exp)
+
+        (_ & (symbol? exp) => '())
+
+        (('static _) => '())
+
+        (('ifs _ . exp*) =>
+         (make-rcall*! exp* vn vv))
+
+        (('ifd . exp*) =>
+         (make-rcall*! exp* vn vv))
+
+        (('call fname s-exp* d-exp*) =>
+         (make-rcall*! d-exp* vn vv)
+         (let ((d-arg*  (c-eval* d-exp* vn vv descr) ))
+           (when (dangerous-parameter? fname d-arg*)
+                 (set-car! exp 'rcall)
+                 (set! program-modified? #t))))
+
+        (('rcall fname s-exp* d-exp*) =>
+         (make-rcall*! d-exp* vn vv))
+
+        (('xcall fname . exp*) =>
+         (make-rcall*! exp* vn vv))
+
+        ((op . exp*) =>
+         (make-rcall*! exp* vn vv))
+
+        ))
+
+    ;;
+    ;; Iterates the function "make-rcall!" on "exp*".
+    ;;
+
+    (define (make-rcall*! exp* vn vv)
+      (for-each (lambda (exp) (make-rcall! exp vn vv)) exp*))
+
+    ;;
+    ;; Returns non-nil iff one of the parameters may be bound
+    ;; to a call, and appears at least twice in a single branch
+    ;; of the body of the function "fname".
+    ;;
+
+    (define (dangerous-parameter? fname arg*)
+      (and (memq 'c arg*)
+           (with (( (_ . dupl*)  (assq fname dupl) ))
+                 (dangerous-par? arg* dupl*))))
+
+    (define (dangerous-par? arg* dupl*)
+      (select
+        (arg* dupl*)
+
+        (() () => #f)
+
+        ((arg . arg*-rest) (dupl . dupl*-rest) =>
+         (or (and (eq? arg 'c) dupl)
+             (dangerous-par? arg*-rest dupl*-rest)))
+
+        ))
+
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    ;;  (make-rcall-prog! prog descr)  ;;
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+    (set! dupl  (make-dupl-descr-prog prog))
+    (set! program-modified? #f)
+    (make-rcall-func*!)
+    program-modified?)
+
+
+  ;;
+  ;; Makes a descriprion that provides information
+  ;; about the parameters that appears two or more times
+  ;; in the same branch in the function body.
+  ;;
+
+  (define (make-dupl-descr-prog prog)
+    (map
+      (lambda (fundef)
+        (with (( (fname svn dvn _ body)  fundef ))
+              `(,fname . ,(map
+                            (lambda (vname)
+                              (> (max-occurrences vname body) 1))
+                            dvn))))
+      prog))
+
+  ;;
+  ;; Returns the maximum number of occurrences of
+  ;; the dynamic variable "vname" in any branch of "exp".
+  ;;
+
+  (define (max-occurrences vname exp)
+    (select
+      (exp)
+
+      (_ & (symbol? exp) =>
+         (if (eq? vname exp) 1 0))
+
+      (('static _) => 0)
+
+      (('ifs exp1 exp2 exp3) =>
+       (max (max-occurrences vname exp2)
+            (max-occurrences vname exp3)))
+
+      (('ifd exp1 exp2 exp3) =>
+       (let ((n1  (max-occurrences vname exp1))
+             (n2  (max-occurrences vname exp2))
+             (n3  (max-occurrences vname exp3)))
+         (max (+ n1 n2) (+ n1 n3))))
+
+      (('call _ _ d-exp*) =>
+       (max-occurrences* vname d-exp*))
+
+      (('rcall _ _ d-exp*) =>
+       (max-occurrences* vname d-exp*))
+
+      (('xcall _ . exp*) =>
+       (max-occurrences* vname exp*))
+
+      ((_ . exp*) =>
+       (max-occurrences* vname exp*))
+
+      ))
+
+  (define (max-occurrences* vname exp*)
+    (foldl-map + 0 (lambda (exp) (max-occurrences vname exp)) exp*))
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;  (upcd:prevent-call-duplication! prog)  ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  ;;
+  ;; "d-fundef*" may be modified by destructive updating.
+  ;;
+
+  (display "Preventing Call Duplication") (newline)
+  (with (( (rf d-fundef* s-fundef*)  prog )
+         )
+        (pcd-loop! d-fundef*)
+        (let ((rf  (uresfn:collect-residual-functions d-fundef*)))
+          (display "-- Done --") (newline)
+          `(,rf ,d-fundef* ,s-fundef*))))
+

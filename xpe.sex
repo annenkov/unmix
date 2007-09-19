@@ -1,0 +1,334 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                 ;;
+;;  File:     xpe.s                                                ;;
+;;  Project:  the specializer Unmix                                ;;
+;;  Author:   S.A.Romanenko, the Institute for Applied             ;;
+;;            Mathematics, the USSR Acedemy of Sciences,           ;;
+;;            Moscow.                                              ;;
+;;  Created:  5 May 1989                                           ;;
+;;  Revised:  8 April 1990                                         ;;
+;;            August 1990                                          ;;
+;;                                                                 ;;
+;;  Contents: The self-applicable part of                          ;;
+;;            the Partial Evaluator.                               ;;
+;;                                                                 ;;
+;;  Synopsis:                                                      ;;
+;;            (specialize-fundef ann-prog conf)                    ;;
+;;                                                                 ;;
+;;            ann-prog  - an annotated Mixwell program             ;;
+;;            conf      - a computational configuration            ;;
+;;                                                                 ;;
+;;  Description:                                                   ;;
+;;            The program constructs a residual function           ;;
+;;            definition, "conf" being the "name" of the function  ;;
+;;            to be generated.                                     ;;
+;;                                                                 ;;
+;;            The configuration "conf" is a pair (fname . svv)     ;;
+;;            where "fname" is the name of the dynamic function    ;;
+;;            from "ann-prog", and "svv" is a list that contains   ;;
+;;            the values of the function's static parameters to    ;;
+;;            be used during the generation of the residual        ;;
+;;            function definition.                                 ;;
+;;                                                                 ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+;;  Data structures used by the partial evaluator:
+;;  =============================================
+;;
+;;  Configuration:
+;;
+;;    <Configuration>     ::= ( <Fname> > . <Svv> )
+;;    <Svv>               ::= ( <Lisp S-expression>* )
+;;
+;;      A configuration is a possible runtime function call,
+;;    which causes the partial evaluator to produce a specialized
+;;    version of the function <Fname> with respect to the values
+;;    <Svv> of the static parameters.
+;;
+
+
+;;  Naming conventions:
+;;  ==================
+;;
+;;    ann-prog    - the annotated Mixwell program
+;;    conf        - a configuration
+;;    fundef      - the annotated function definition
+;;    svn         - a list of static variable names
+;;    dvn         - a list of dynamic variable names
+;;    svv         - a list of static variable values
+;;    dvv         - a list of dynamic variable values
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                 ;;
+;;          Generation of a Residual Function Definition           ;;
+;;                                                                 ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+;;
+;;    This function is to be called from other file
+;;  by "xcall".
+;;    If "conf" is nil, the function returns the name of
+;; the goal function of the program. This trick is used
+;; in order to separate this part of the partial evaluator from
+;; the part that handles the set of pending configurations.
+;;    If "conf" is not nil, the function returns the list
+;;
+;;          (dvn res-body)
+;;
+;;  where "dnv" is the list of the parameters of the residual
+;;  function definition, and "res-body" is the residual body
+;;  of the function.
+;;
+
+(define ($specialize-fundef ann-prog conf)
+  (with (( (rf d-prog s-prog)  ann-prog )
+         )
+        (select
+          (conf)
+
+          (() => (car rf))
+
+          ((fname . svv) =>
+           (rcall ($check-function rf s-prog d-prog fname svv)))
+
+          )))
+
+;;
+;;    This function searches through "rf",  which is the list of
+;; the residual function names, to find the name of the function
+;; to be specialized. The looping through "rf" is done here and
+;; not in a separate function to ensure that the function name
+;; will be static when specializing this part of the partial
+;; evaluator.
+;;
+
+(define ($check-function rf s-prog d-prog fname svv)
+  (select
+    (rf)
+
+    (() => '())
+
+    ((rf-fname . rf-rest) =>
+     (if (eq? fname rf-fname)
+         ($gen-res-fundef (assq rf-fname d-prog) s-prog d-prog svv)
+         ($check-function rf-rest s-prog d-prog fname svv)))
+
+    ))
+
+;;
+;;    This function checks the list of static values
+;; to ensure that its length is equal to the number
+;; of the function's static parameters. This condition
+;; is certain to be satisfied, unless the specializer
+;; contains a bug, but this fact is difficult do discover
+;; automatically...
+;;
+
+(define ($gen-res-fundef fundef s-prog d-prog svv)
+  (with* (( (fname svn dvn _ body)  fundef )
+          ( svv  ($contract-svv svn svv) )
+          ( new-body  (rcall ($pe-exp body svn dvn svv dvn s-prog d-prog)) )
+          )
+         `(,dvn ,new-body)))
+
+;;
+;; The function "contract-svv" was intorduced to provide information
+;; for the arity raiser. It is of little use, unless the partial
+;; evaluator is specialized with respect to a program.
+;;
+
+(define ($contract-svv svn svv)
+  (select
+   (svn)
+
+    (() => '())
+
+    ((_ . rest) =>
+     `(,(car svv) . ,($contract-svv rest (cdr svv))))
+
+   ))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                 ;;
+;;          Partial (Symbolic) Evaluation of Expressions           ;;
+;;                                                                 ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;
+;;    Returns a residual expression obtained by partially evaluating
+;; the expression "exp" in an environment where the names of "svn"
+;; and "dvn" are bound to the values of "svv" and "dvv".
+;;    The static values are ordinary Lisp S-expressions whereas
+;; the dynamic values are some residual Mixwell expressions.
+;;
+
+(define ($pe-exp exp svn dvn svv dvv s-prog d-prog)
+  (select
+   (exp)
+
+    (_ & (symbol? exp) =>
+       ($lookup-value exp dvn dvv))
+
+    (('static exp1) =>
+     `(quote ,($eval-exp exp1 svn svv s-prog)))
+
+    (('ifs exp1 exp2 exp3) =>
+     (if ($eval-exp exp1 svn svv s-prog)
+         ($pe-exp exp2 svn dvn svv dvv s-prog d-prog)
+         ($pe-exp exp3 svn dvn svv dvv s-prog d-prog)))
+
+    (('ifd exp1 exp2 exp3) =>
+     `(if ,($pe-exp exp1 svn dvn svv dvv s-prog d-prog)
+          ,($pe-exp exp2 svn dvn svv dvv s-prog d-prog)
+          ,($pe-exp exp3 svn dvn svv dvv s-prog d-prog)))
+
+    (('call fname s-exp* d-exp*) =>
+     ($pe-call
+       (assq fname d-prog)
+       ($eval-exp* s-exp* svn svv s-prog)
+       ($pe-exp* d-exp* svn dvn svv dvv s-prog d-prog)
+       s-prog d-prog))
+
+    (('rcall fname s-exp* d-exp*) =>
+     `(call (,fname . ,($eval-exp* s-exp* svn svv s-prog))
+            . ,($pe-exp* d-exp* svn dvn svv dvv s-prog d-prog)))
+
+    (('xcall fname . exp*) =>
+     `(xcall ,fname
+             . ,($pe-exp* exp* svn dvn svv dvv s-prog d-prog)))
+
+    ((fname . exp*) =>
+     `(,fname . ,($pe-exp* exp* svn dvn svv dvv s-prog d-prog)))
+
+     ))
+
+(define ($pe-exp* exp* svn dvn svv dvv s-prog d-prog)
+  (select
+   (exp*)
+
+    (() => '())
+
+    ((exp . rest) =>
+     `(,($pe-exp exp svn dvn svv dvv s-prog d-prog)
+        . ,($pe-exp* rest svn dvn svv dvv s-prog d-prog)))
+
+   ))
+
+;;
+;; Unfold a function call by inserting the (partially evaluated)
+;; body of the called function.
+;;
+
+(define ($pe-call fundef svv dvv s-prog d-prog)
+  (with (( (_ svn dvn _ body)  fundef )
+         )
+        (rcall ($pe-exp body svn dvn svv dvv s-prog d-prog))))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                 ;;
+;;              Evaluation of Static Expressions                   ;;
+;;                                                                 ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;
+;; This part of the partial evaluator is an ordinary
+;; evaluator, which deals with static values only.
+;;
+
+(define ($eval-exp exp svn svv prog)
+  (select
+   (exp)
+
+    (_ & (symbol? exp) =>
+       ($lookup-value exp svn svv))
+
+    (('quote s-exp) => s-exp)
+
+    (('if exp1 exp2 exp3) =>
+     (if ($eval-exp exp1 svn svv prog)
+         ($eval-exp exp2 svn svv prog)
+         ($eval-exp exp3 svn svv prog)))
+
+    (('call fname . exp*) =>
+      ($eval-call
+        prog
+        (assq fname prog)
+        ($eval-exp* exp* svn svv prog)))
+
+    (('xcall fname . exp*) =>
+      (xapply fname ($eval-exp* exp* svn svv prog)))
+
+    (('error . exp*) =>
+     (error "Error function encountered during partial evaluation"
+            `(error . ,($eval-exp* exp* svn svv prog))))
+
+    (('car exp1) =>
+     (car ($eval-exp exp1 svn svv prog)))
+
+    (('cdr exp1) =>
+     (cdr ($eval-exp exp1 svn svv prog)))
+
+    (('cons exp1 exp2) =>
+     (cons ($eval-exp exp1 svn svv prog)
+           ($eval-exp exp2 svn svv prog)))
+
+    (('null? exp1) =>
+     (null? ($eval-exp exp1 svn svv prog)))
+
+    (('pair? exp1) =>
+     (pair? ($eval-exp exp1 svn svv prog)))
+
+    (('equal? exp1 exp2) =>
+     (equal? ($eval-exp exp1 svn svv prog)
+             ($eval-exp exp2 svn svv prog)))
+
+    (('eq? exp1 exp2) =>
+     (eq? ($eval-exp exp1 svn svv prog)
+          ($eval-exp exp2 svn svv prog)))
+
+    (('eqv? exp1 exp2) =>
+     (eqv? ($eval-exp exp1 svn svv prog)
+           ($eval-exp exp2 svn svv prog)))
+
+    (('not exp1) =>
+     (not ($eval-exp exp1 svn svv prog)))
+
+    ((fname . exp*) =>
+      (xapply fname ($eval-exp* exp* svn svv prog)))
+
+   ))
+
+(define ($eval-exp* exp* svn svv prog)
+  (select
+   (exp*)
+
+    (() => '())
+
+    ((exp . rest) =>
+     `(,($eval-exp exp svn svv prog)
+        . ,($eval-exp* rest svn svv prog)))
+
+   ))
+
+(define ($eval-call prog fundef svv)
+  (with (( (_ svn _ body)  fundef )
+         )
+        (rcall ($eval-exp body svn svv prog))))
+
+;;
+;; Search for "vname" in "vn" and return the corresponding
+;; value from "vv".
+;;
+
+(define ($lookup-value vname vn vv)
+  (with (( (vnhd . vntl)  vn )
+         ( (vvhd . vvtl)  vv )
+         )
+        (if (eq? vnhd vname)
+            vvhd
+            ($lookup-value vname vntl vvtl))))
+

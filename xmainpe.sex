@@ -1,0 +1,357 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                 ;;
+;;  File:     xmainpe.sex                                          ;;
+;;  Project:  the specializer Unmix                                ;;
+;;  Author:   S.A.Romanenko, the Institute for Applied             ;;
+;;            Mathematics, the USSR Acedemy of Sciences,           ;;
+;;            Moscow.                                              ;;
+;;  Created:  5 May 1989                                           ;;
+;;  Revised:  8 April 1990                                         ;;
+;;            August 1990                                          ;;
+;;            December, 1992                                       ;;
+;;                                                                 ;;
+;;  Contents: The standard part of the Partial Evaluator           ;;
+;;            as well as of the residual program generators        ;;
+;;            produced by specializing the Partial Evaluator.      ;;
+;;                                                                 ;;
+;; This part is not to be specialized because the parameters of    ;;
+;; the functions are dynamic.                                      ;;
+;;                                                                 ;;
+;;                                                                 ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+;;  Data structures used by the partial evaluator:
+;;  =============================================
+;;
+;;  Configuration:
+;;
+;;    <Configuration>     ::= ( <Fname> > . <Svv> )
+;;    <Svv>               ::= ( <Lisp S-expression>* )
+;;
+;;      A configuration is a possible runtime function call,
+;;    which causes the partial evaluator to produce a specialized
+;;    version of the function <Fname> with respect to the values
+;;    <Svv> of the static parameters.
+;;
+;;  PendingList:
+;;
+;;    <PendingList> ::= ()
+;;                  |   ( <Configuration> . <PendingList> )
+;;
+;;    A pending list is a list of configurations that are to
+;;  be used to generate residual function definitions.
+;;
+;;  NameList:
+;;
+;;    <NameList>  ::= ()
+;;                |   (( <Configuration> . <NewName> ) . <NameList> )
+;;
+;;    In <NameList> each <Configuration> is associated with
+;;  a <NewFname> used to denote the residual function obtained by
+;;  specializing <Fname> with respect to <Svv>.
+;;
+;;  CountList:
+;;
+;;    <CountList>  ::= ()
+;;                 |   (( <Fname> . <Int> ) . <CountList> )
+;;
+;;    In <CountList> each <Fname> of associated with an integer,
+;;  which is equal to the number of residual functions produced
+;;  from the function <Fname>.
+
+
+;;  Naming conventions:
+;;  ==================
+;;
+;;    ann-prog    - the annotated Mixwell program
+;;    conf        - a configuration
+;;    fundef      - the annotated function definition
+;;    svn         - a list of static variable names
+;;    dvn         - a list of dynamic variable names
+;;    svv         - a list of static variable values
+;;    dvv         - a list of dynamic variable values
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                 ;;
+;;           Residual program generation - Main Loop of            ;;
+;;                    the Partial Evaluator.                       ;;
+;;                                                                 ;;
+;;                                                                 ;;
+;;  The algorithm used:                                            ;;
+;;  ------------------                                             ;;
+;;                                                                 ;;
+;;  Given:  Ann-Prog = annotated program to partially evaluate,    ;;
+;;          GoalSvv  = static variable values for the goal         ;;
+;;                     function.                                   ;;
+;;                                                                 ;;
+;;  (* Ask the name of the goal function *)                        ;;
+;;  Fname := SpecializeFunDef(Ann-Prog,'());                       ;;
+;;                                                                 ;;
+;;  (* Initialize "Pending" and "Names". *)                        ;;
+;;  Conf := (Fname . Goalsvv):                                     ;;
+;;  Pending := { Conf };                                           ;;
+;;  Out := {};                                                     ;;
+;;  Names := { (Conf . Fname) };                                   ;;
+;;                                                                 ;;
+;;  (* Choose a configuration from Pending *)                      ;;
+;;  while Pending <> {} do                                         ;;
+;;  begin                                                          ;;
+;;    choose Conf from Pending;                                    ;;
+;;    Pending := Pending \ { Conf };                               ;;
+;;    (Dvn . Body) := SpecializeFundef(Ann-Prog, Conf);            ;;
+;;    NewFname := LookupNewFname!(Conf, Names);                    ;;
+;;    Body := Update!(Body, Pending, Names);                       ;;
+;;                                                                 ;;
+;;    (* Update Out *)                                             ;;
+;;    Fun := list(NewFname, Dvn, '= ,Body);                        ;;
+;;    Out := Out + { Fun };                                        ;;
+;;  end;                                                           ;;
+;;                                                                 ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+;;
+;; This function is the entry point.
+;; If "ann-prog" is empty, it means that the residual program
+;; is to be generated by a residual program generator (which
+;; is supposed to be created and loaded in advance).
+;; Otherwise, the residual program will be generated by
+;; ordinary partial evaluation.
+;;
+
+(define (umainpe:generate-residual-program o-file ann-prog goalsvv)
+
+  (define o-port #f)   ;; An output port to which the residual program
+                       ;; is to be written.
+
+  (define pending #f)  ;; A list of pending configuratins.
+
+  (define names #f)    ;; A mapping from configurations to residual
+                       ;; function names.
+
+  (define counts #f)   ;; A mapping from source function names
+                       ;; to counts of residual functions produced.
+
+  ;;
+  ;;    This function inquires "specialize-fundef" about the name of
+  ;; the goal function. This trick enables us to avoid specializing
+  ;; the main program of the partial evaluator each time the partial
+  ;; evaluator has to be specialized, because the result of
+  ;; specializing the main program does not depend on "ann-prog".
+  ;; Thus we can use the same specialized (by hand) main program for
+  ;; all residual versions of "specialize-fundef".
+  ;;    Then the function initializes "pending" and "names" and
+  ;; calls the main loop of the partial evaluator.
+  ;;
+
+  (define (generate-residual-program-pe)
+    (with* (( (rf d-prog s-prog)  ann-prog )
+            ;--- Ask the name of the goal function !!!
+            ( fname    ($specialize-fundef ann-prog '()) )
+            ( conf     `(,fname . ,goalsvv) )
+            )
+           (set! counts  '())
+           (set! pending '())
+           (set! names   '())
+           (find-name! conf)
+           (choose-conf-pe)))
+
+  ;;
+  ;;    This function chooses a configuration from "pending",
+  ;; generates the list of the residual parameters and the
+  ;; residual body, updates the body, "pending" and "names",
+  ;; makes the residual function definition and outputs it.
+  ;;    Updating the residual body consists in replacing
+  ;; configurations in function calls with the names of residual
+  ;; functions.
+  ;;
+
+  (define (choose-conf-pe)
+    (select
+      (pending)
+
+      (() => '())
+
+      ((conf . rest) =>
+       (set! pending rest)
+       (with (( (dvn body)  ($specialize-fundef ann-prog conf) )
+              )
+             (update! body)
+             (let* ((fname  (cdr (assoc conf names)))
+                    (fundef `(,fname ,dvn = ,body))
+                    )
+               (print-fundef fundef)
+               (choose-conf-pe))))
+
+      ))
+
+  ;;
+  ;;    The functions "generate-residual-program-gn" and
+  ;; "choose-conf-gn" have been obtained by specializing (by hand)
+  ;; the function "generate-residual-program-pe" and the function
+  ;; "choose-conf-pe" with respect to "ann-prog". The result does not
+  ;; depend on "ann-prog", so these functions can be used with all
+  ;; residual versions of "specialize-fundef".
+  ;;
+
+  (define (generate-residual-program-gn)
+    (with* (;--- Ask the name of the goal function !!!
+                 ( fname    ($specialize-fundef-$1 '()) )
+                 ( conf     `(,fname . ,goalsvv) )
+                 )
+           (set! counts  '())
+           (set! pending '())
+           (set! names   '())
+           (find-name! conf)
+           (choose-conf-gn)))
+
+  (define (choose-conf-gn)
+    (select
+      (pending)
+
+      (() => '())
+
+      ((conf . rest) =>
+       (set! pending rest)
+       (with (( (dvn body)  ($specialize-fundef-$1 conf) )
+              )
+             (update! body)
+             (let* ((fname  (cdr (assoc conf names)))
+                    (fundef `(,fname ,dvn = ,body))
+                    )
+               (print-fundef fundef)
+               (choose-conf-gn)
+               )))
+
+      ))
+
+  ;;
+  ;; Prints a residual function definition.
+  ;;
+
+  (define (print-fundef fundef)
+    (display "*")
+    (pretty-print fundef o-port)
+    (newline o-port) (newline o-port))
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;                                                                 ;;
+  ;;       Updating Expression/PendingList/NameList                  ;;
+  ;;                                                                 ;;
+  ;;    The expression "exp" is traversed. Each time a residual      ;;
+  ;; call (call <Configuration> ...) is found, the <Configuration>   ;;
+  ;; is replaced with the atomic function name associated with       ;;
+  ;; the <Configuration>.                                            ;;
+  ;;    Besides, all configurations that has not been recorded       ;;
+  ;; in "names" are recorded in "pending" and inserted in "names"    ;;
+  ;; together with new atomic function names.                        ;;
+  ;;                                                                 ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  ;;
+  ;; Traverses an expression "exp" and replaces all
+  ;; configurations in function calls with residual function
+  ;; names (by means of destructive updating).
+  ;;
+
+  (define (update! exp)
+    (select
+      (exp)
+
+      (_ & (symbol? exp) => #f)
+
+      (('quote const) => #f)
+
+      (('call conf . exp*) =>
+       (for-each update! exp*)
+       (set-car! (cdr exp) (find-name! conf)))
+
+      (('xcall fname . exp*) =>
+       (for-each update! exp*))
+
+      ((op . exp*) =>
+       (for-each update! exp*))
+
+      ))
+
+  ;;
+  ;; Returns the residual function name corresponding
+  ;; to the configuration "conf". Updates "names", "pending",
+  ;; and "counts", if necessary.
+  ;;
+
+  (define (find-name! conf)
+    (with (( (fname . _)  conf )
+           ( conf-descr   (assoc conf names))
+           )
+          (when (not conf-descr)
+                (set! conf-descr `(,conf . ,(make-fname! fname)))
+                (set! names      `(,conf-descr . ,names))
+                (set! pending    `(,conf . ,pending)))
+          (cdr conf-descr)))
+
+  ;;
+  ;; Returns a new residual function name.
+  ;;
+
+  (define (make-fname! fname)
+    (string->symbol
+      (string-append
+        (symbol->string fname)
+        "-$"
+        (number->string (get-free-count! fname)))))
+
+  ;;
+  ;; Returns the number of residual functions produced
+  ;; from the source function "fname" and increases
+  ;; the counter.
+  ;;
+
+  (define (get-free-count! fname)
+    (let ((fname-descr (assq fname counts)))
+      (if fname-descr
+          (let ((count (+ 1 (cdr fname-descr))))
+            (set-cdr! fname-descr count)
+            count)
+          (begin
+            (set! counts `((,fname . 1) . ,counts))
+            1))))
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;  (umainpe:generate-residual-program o-file ann-prog goalsvv)  ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  (set! o-port (open-output-file o-file))
+  (if (null? ann-prog)
+      (generate-residual-program-gn)
+      (generate-residual-program-pe))
+  (close-output-port o-port))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                 ;;
+;;          Applying functions with given symbolic name            ;;
+;;                                                                 ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;
+;; "XAPPLY" is called from the file "xpe.s".
+;;
+;; The call
+;;      (XAPPLY 'fname (list exp1 exp2 ... expN))
+;; is equivalent to
+;;      (fname exp1 exp2 ... expn).
+;;
+;;
+
+(define xapply
+  (let ((proc-list '()))
+    (lambda (fname args)
+      (let ((fname/proc (assq fname proc-list)))
+        (if fname/proc
+            (apply (cdr fname/proc) args)
+            (let ((proc (eval fname)))
+              (set! proc-list `((,fname . ,proc) . ,proc-list))
+              (apply proc args)))))))
+
+

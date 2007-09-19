@@ -1,0 +1,8 @@
+         A RECURSIVE VERSION OF THE PARTIAL EVALUATOR
+
+This directory contains a few files, created by Rober Glueck
+(glueck@diku.dk).
+
+If you copy them to the root directory of Unmix, the iterative
+version of the partial evaluator will have been replaced with
+a recursive version.

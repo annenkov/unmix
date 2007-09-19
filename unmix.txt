@@ -1,0 +1,558 @@
+
+
+                         THE SPECIALIZER UNMIX
+			   (for SCM Scheme)
+
+                          Sergei A.Romanenko
+
+               Keldysh Institute of Applied Mathematics
+                      Russian Academy of Sciences
+               Miusskaya Sq.4, SU-125047, Moscow, Russia
+
+
+                              July, 1990
+                 Revised: December 1992, December 1993
+
+
+
+COPYRIGHT NOTICE
+================
+
+Permission to use, copy, modify, and distribute this software and its
+documentation for any personal or educational use without fee is hereby
+granted, provided that:
+
+  * This copyright notice is retained in both source code and
+    supporting documentation.
+
+  * Modified versions of this software cannot be redistributed unless
+    accompanied by a complete history (date, author, description) of
+    modifications made; the intension here is to give appropriate
+    credit to those involved, whilst simultaneously ensuring that any
+    recipient can determine the origin of the software.
+
+  * These same conditions will also be applied to any software system
+    derived either in full or in part from this system.
+
+The name `Unmix` is not a trademark, registered or otherwise, and you
+are free to mention this name in published material, public and private
+correspondence, and other documents without restriction or obligation.
+
+`Unmix` is provided `as is` without express or implied warranty.
+
+
+
+WHAT IS UNMIX?
+==============
+
+If a program has several input parameters, it can be "specialized"
+with respect to the values of some of the parameters, in which case
+we get a "residual" program with less input parameters than the original
+program.
+
+The parameters whose values are known at the time the program is being
+specialized are referred to as "static" parameters, all other parameters
+are referred to as "dynamic" ones.
+
+Unmix is a system that specializes programs written in a subset
+of Scheme, and consists of two phases: "preprocessor" and "generator of
+residual programs". The specialization is done in two steps.
+
+At the first step, preprocessor takes a Scheme program and a descriptor
+of the program's input parameters. The program is a non-empty sequence
+of function definitions. The first function definition in the program is
+assumed to be the "main" function of the program. The descriptor is a
+string of letters "s" and "d", the length of the descriptor being equal
+to the number of the main function's parameters.
+
+The descriptor of the program's parameters classifies each parameter of
+the main function as either static or dynamic. If a parameter is static,
+the corresponding letter in the descriptor is "s", otherwise the letter
+is "d".
+
+Preprocessor takes as input a program and a descriptor and produces an
+"annotated" version of the original program, which contains some
+directions for the generator of residual programs.
+
+At the second step, the generator of residual programs takes as input
+an annotated program and a sequence of file names (separated by one or
+more spaces). The number of file names must be equal to the number of
+the program's static input parameters. Each of the files must contain
+zero, one, or more Scheme S-expressions to be used as values of the
+corresponding static parameters.
+
+
+
+THE STRUCTURE OF THE PREPROCESSOR
+=================================
+
+The preprocessing consists of several stages.
+
+First, the original program is "desugared", i.e. compiled from Scheme to
+Mixwell, which is the internal language of the specializer.
+
+Second, all variables and operations in the program are classified as
+either static or dynamic and this information is inserted into the
+program. The result is an annotated version of the original program.
+Annotated Mixwell programs will be regarded as programs written in
+Mixwell-Ann, a version of Mixwell supplemented with additional
+constructs to express annotations.
+
+Second, some of the defined function calls in the annotated program are
+annotated as "residual" in order to avoid infinite unfolding of function
+calls and duplication of function calls that may result from some calls
+being unfolded.
+
+
+
+THE STRUCTURE OF THE GENERATOR
+==============================
+
+The generator consists of "partial evaluator", which generates residual
+program by symbolically evaluating Mixwell expressions, and
+"postprocessor", which performs some additional transformations of the
+residual program and then translates the residual Mixwell program to
+Scheme.
+
+
+
+THE STRUCTURE OF THE POSTPROCESSOR
+==================================
+
+The postprocessing comprises the following stages.
+
+    1) the first Call Graph Reduction,
+    2) Arity Raising,
+    3) the second Call Graph Reduction,
+    4) Compilation from Mixwell into Scheme.
+
+More information may be found in the source programs of Unmix.
+
+
+
+HOW TO RUN UNMIX?
+=================
+
+This version of Unmix can be run under SCM Scheme implementation.
+
+The directory containing programs to be specialized must also contain
+the file unmix.scm having the following contents:
+
+(define **unmix-path** SSSS)
+(load (string-append **unmix-path** "xunmix.scm"))
+
+where SSSS is the path to the directory containing Unmix.
+
+For example, if Unmix resides in the directory ~/unmix/, the file
+unmix.scm must contain the following lines:
+
+(define **unmix-path** "~/unmix/")
+(load (string-append **unmix-path** "xunmix.scm"))
+
+To call Unmix, make sure that the directory containing programs to be
+specialized is the current one. Then start the Scheme system and load
+the file unmix.scm.
+
+When the Scheme prompt appears, enter
+
+(UNMIX)
+
+As a result, Unmix starts and displays a menu on the screen, which
+provides further information.
+
+
+
+THE INPUT LANGUAGE OF UNMIX
+===========================
+
+Unmix itself is written in "Scheme with EXtensions" (files with the
+extention sex). Before being loaded and executed, the sex-files have to
+be compiled to scm-files (with the extension scm), containing programs
+in Scheme without extensions.
+
+For bootstrapping reasons, several parts of Unmix have been written in
+Scheme directly, so that they are contained in files with the extension
+scm and needn't be compiled.
+
+Here is the syntax of the subset of Scheme accepted by the specializer
+Unmix:
+
+
+<Program> ::=  <ProcDef> <ProcDef>*               ;; Program
+
+<ProcDef>  ::=  (define (<Pname> <Vname>*) <Exp>) ;; Procedure
+                                                  ;; definition
+
+<Exp>     ::=  <Vname>                      ;; Variable
+          |    (quote <S-expression>)       ;; Constant
+          |    <Literal>                    ;; Literal constant
+          |    (if <Exp> <Exp> <Exp>)       ;; Conditional
+          |    (let (<Binding>*) <Exp>)     ;; Let-expression
+          |    (rcall (<Pname> <Exp>*))     ;; Residual call
+          |    (generalize <Exp>)           ;; Generalizer
+          |    (<Pname> <Exp>*)             ;; Procedure call
+          |    (<Mname> <S-Expression>*)    ;; Macro
+
+<Binding> ::=  (<Vname> <Exp>)              ;; Local binding
+
+<Pname>   ::=  <Symbol>                     ;; Procedure name
+<Vname>   ::=  <Symbol>                     ;; Variable name
+<Mname>   ::=  <Symbol>                     ;; Macro name
+
+<Literal> ::= <boolean> | <number> | <character>
+          |   <string> | <vector>
+
+
+All procedures called in the program must be without side-effects. For
+this reason, the terms "procedure" and "function" will be used in the
+description of Unmix interchangeably.
+
+Constructs (generalize <Exp>) and (rcall (<Pname> <Exp>*)) are used to
+insert into the program hand-made annotations, which permit the user to
+control the specializer. They are useless for ordinary programming.
+
+Construct (generalize <Exp>) tells the specializer that the result of
+specializing <Exp> must be dynamic, even if <Exp> is static. When the
+program is compiled in the usual way, this construct is equivalent to
+<Exp>.
+
+Construct (rcall (<Pname> <Exp>*)) tells the specializer that the result
+of specializing the procedure call (<Pname> <Exp>*) must be a residual
+call. When the program is compiled in the usual way, this construct is
+equivalent to (<Pname> <Exp>*).
+
+Some useful macro definitions may be found in the file "x-match.sex".
+File "x-synt.scm" contains a definition of "extend-syntax", a powerful
+tool for defining macro extensions.
+
+
+
+THE LANGUAGE MIXWELL
+====================
+
+Mixwell is the internal language of the specializer Unmix. Here is its
+syntax:
+
+<Program> ::=  <ProcDef> <ProcDef>*
+
+<ProcDef> ::=  (<Pname> (<Vname>*) = <Exp>)
+
+<Exp>     ::=  <Vname>                      ;; Variable
+          |    (quote <S-expression>)       ;; Constant
+          |    (if <Exp> <Exp> <Exp>)       ;; Conditional
+          |    (call  <Pname> <Exp>*)       ;; Defined function call
+          |    (rcall <Pname> <Exp>*)       ;; Defined function call
+          |    (xcall <Pname> <Exp>*)       ;; External function call
+          |    (<Pname> <Exp>*)             ;; External function call
+
+<Pname>   ::=  <Symbol>                     ;; Procedure name
+<Vname>   ::=  <Symbol>                     ;; Variable name
+
+The construct (call <Pname> <Exp>*) is a call on the procedure <Pname>
+defined in the program, which will be unfolded during partial
+evaluation.
+
+The construct (rcall <Pname> <Exp>*) is a call on the procedure <Pname>
+defined in the program, which will give rise to a residual call during
+partial evaluation.
+
+The construct (xcall <Pname> <Exp>*) is a call on the procedure <Pname>
+defined somewhere outside the program. If <Pname> is different from the
+symbols STATIC, IFS, IFD, RCALL, CALL, and XCALL, the keyword XCALL is
+omitted and the construct takes the form (<Pname> <Exp>*).
+
+
+
+THE LANGUAGE MIXWELL-ANN
+========================
+
+<Ann-Program> ::=
+    <RP-Names> <D-Program> <S-Program>      ;; Program
+<RP-Names>    ::=  (<Pname>*)               ;; Residual procedure
+                                               ;; names
+<D-Program>   ::=                           ;; Dynamic program
+    (<A-ProcDef> <A-ProcDef>*)
+<S-Program>   ::=  (<ProcDef>*)             ;; Static program
+<A-ProcDef>   ::=
+    (<Pname> <ParList> <ParList> = <A-Exp>) ;; Annotated procedure
+                                               ;; definition
+<ParList>     ::=  (<Vname>*)               ;; Parameter list
+
+<A-Exp>  ::=
+    <Vname>                                 ;; Variable
+  | (static <Exp>)                          ;; Static subexpression
+  | (ifs <Exp> <A-Exp> <A-Exp>)             ;; Static conditional
+  | (ifd <A-Exp> <A-Exp> <A-Exp>)           ;; Dynamic conditional
+  | (call  <Pname> (<Exp>*) (<A-Exp>*))     ;; Unfoldable defined
+                                               ;; function call
+  | (rcall <Pname> (<Exp>*) (<A-Exp>*))     ;; Residual defined
+                                               ;; function call
+  | (xcall <Pname> <A-Exp>*)                ;; External function call
+  | (<Pname> <A-Exp>*)                      ;; External function call
+
+
+EXAMPLES
+========
+
+In addition to the files that contain the specializer, there are
+several files containing a number of example programs to be
+specialized.  Here we list the programs with some suggestions about the
+way in which they can be specialized.
+
+--------------------------------------------------------------------
+|  Program            |  Source     |  Parameter   |  Static data  |
+|                     |  file       |  description |  files        |
+--------------------------------------------------------------------
+|                     |             |              |               |
+|  Zipper             |  zip.sex    |  SD          |  zip123.dat   |
+|  Maximum substring  |  mcs.sex    |  SD          |  mcs123.dat   |
+|  MP Interpreter     |  mp.sex     |  SD          |  mprev.dat    |
+|  TM Interpreter     |  tm.sex     |  SDDD        |  tmtst.dat    |
+|  Parser             |  prs.sex    |  SD          |  prsexp.dat   |
+|                     |             |              |               |
+--------------------------------------------------------------------
+
+
+REFERENCES
+==========
+
+[Barzdin 88] G.Barzdin. Mixed Computation and Compiler Basis. In
+   D.Bjorner, A.P.Ershov and N.D.Jones, editors, Partial Evaluation and
+   Mixed Computation, pages 15-26, North-Holland, 1988.
+
+[Beckman 76] L.Beckman, A.Haraldson, O.Oskarsson, E.Sandewall. A Partial
+   Evaluator, and Its Use as a Programming Tool. Artificial
+   Intelligence, 7(4):319-357, 1976.
+
+[Bulyonkov 84] M.A.Bulyonkov. Polyvariant Mixed Computation for Analyzer
+   Programs. Acta Informatica, 21:473-484, 1984.
+
+[Burstall 77] R.M.Burstall and J.Darlington. A Transformation System for
+   Developing Recursive Programs. Journal of the ACM, 24(1):44-67, 1977.
+
+[Dixon 71] J.Dixon. The Specializer, a Method of Automatically Writing
+   Computer Programs. Division of Computer Research and Technology,
+   National Institute of Health, Bethenda, Maryland, 1971.
+
+[Ershov 78] On the Essence of Compilation. In E.J.Neuhold, editor,
+   Formal Description of Programming Concepts, pages 391-420,
+   North-Holland, 1978.
+
+[Ershov 81] A.P.Ershov. The Transformational Machine: Theme and
+   Variations. In J.Grushka and M.Chytil, editors, Mathematical
+   Foundations of Computer Science, Strbske Pleso, Czechoslovakia, pages
+   16-32, Lecture Notes in Computer Science, Vol.118, Springer-Verlag,
+   1981.
+
+[Futamura 71] Partial Evaluation of Computation Process - An Approach to
+   a Compiler-Compiler. Systems, Computers, Controls, 2(5):45-50, 1971.
+
+[Hughes 88] J.Hughes. Backward Analysis of Functional Programs. In
+   D.Bjorner, A.P.Ershov and N.D.Jones, editors, Partial Evaluation and
+   Mixed Computation, pages 187-208, North-Holland, 1988.
+
+[Jones 85] N.D.Jones, P.Sestoft and H.Sondergaard. An Experiment in
+   Partial Evaluation: The Generation of a Compiler Generator. In
+   J.-P.Jouannaud, editor, Rewriting Techniques and Applications, Dijon,
+   France, pages 124-140, Lecture Notes in Computer Science, Vol.202,
+   Springer-Verlag, 1985.
+
+[Jones 86] N.D.Jones and A.Mycroft. Data Flow Analysis of Applicative
+   Programs Using Minimal Function Graphs. In Thirteens ACM Symposium on
+   Principles of Programming Languages, St.Petersburg, Florida, pages
+   296-306, ACM, 1986.
+
+[Jones 88] Automatic Program Specialization: A Re-Examination from Basic
+   Principles. In D.Bjorner, A.P.Ershov and N.D.Jones, editors, Partial
+   Evaluation and Mixed Computation, pages 225-282, North-Holland, 1988.
+
+[Mogensen 88] T.Mogensen. Partially Static Structures in a
+   Self-Applicable Partial Evaluator. In D.Bjorner, A.P.Ershov and
+   N.D.Jones, editors, Partial Evaluation and Mixed Computation, pages
+   325-347, North-Holland, 1988.
+
+[Ostrovski 88] B.N.Ostrowski. Implementation of Controlled Mixed
+   Computation in System for Automatic Development of Language-Oriented
+   Parsers. In D.Bjorner, A.P.Ershov and N.D.Jones, editors, Partial
+   Evaluation and Mixed Computation, pages 385-403, North-Holland, 1988.
+
+[Romanenko 88] S.A.Romanenko. A Compiler Generator Produced by a
+   Self-Applicable Specializer Can Have a Surprisingly Natural and
+   Understandable Structure. In D.Bjorner, A.P.Ershov and N.D.Jones,
+   editors, Partial Evaluation and Mixed Computation, pages 445-463,
+   North-Holland, 1988.
+
+[Romanenko 90] S.A.Romanenko. Arity Raiser and Its Use in Program
+   Specialization. In N.Jones, editor, ESOP '90, 3rd European Symposium
+   on Programming, Copenhagen, Denmark, May 15-18, 1990, pages 341-360,
+   Lecture Notes in Computer Science, Vol. 432, Springer-Verlag, 1990.
+
+[Sestoft 86] The Structure of a Self-Applicable Partial Evaluator. In
+   H.Ganzinger and N.D.Jones, editors, Programs as Data Objects,
+   Copenhagen, Denmark, 1985, pages 236-256, Lecture Notes in Computer
+   Science, Vol. 217, Springer-Verlag, 1986.
+
+[Schmidt 86] D.A.Schmidt. Denotational Semantics. Allyn and Bacon,
+   Boston, 1986.
+
+[Sestoft 88] P.Sestoft. Automatic Call Unfolding in a Partial Evaluator.
+   In D.Bjorner, A.P.Ershov and N.D.Jones, editors, Partial Evaluation
+   and Mixed Computation, pages 485-506, North-Holland, 1988.
+
+[Turchin 72] V.F.Turchin. Equivalent Transformation of Recursive
+   Functions Defined in Refal. In Teoriya Yazykov i Metody
+   Programmirovaniya. Trudy Simposiuma, pages 31-42, Alushta-Kiev, 1972
+   (in Russian).
+
+[Turchin 79] V.F.Turchin. A Supercompiler System Based on the Language
+   Refal. SIGPLAN Notices, 14(2):46-54, February 1979.
+
+[Turchin 82] V.F.Turchin, R.M.Nirenberg and D.V.Turchin. Experiments
+   with a Supercompiler. In 1982 ACM Symposium on Lisp and Functional
+   Programming, Pittsburgh, Pennsylvania, pages 47-55, ACM, 1982.
+
+[Turchin 86] V.F.Turchin. The Concept of a Supercompiler. ACM
+   Transactions on Programming Languages and Systems, 8(3):292-325, July
+   1986.
+
+[Turchin 88] V.F.Turchin. The Algorithm of Generalization in the
+   Supercompiler. In D.Bjorner, A.P.Ershov and N.D.Jones, editors,
+   Partial Evaluation and Mixed Computation, pages 531-549,
+   North-Holland, 1988.
+
+[Wadler 88] P.Wadler. Deforestation: Transforming Programs to Eliminate
+   Trees. In European Symposium on Programming, Lecture Notes in
+   Computer Science, Springer-Verlag, 1988.
+
+
+APPENDIX. SOME MACROS USED IN UNMIX
+===================================
+
+Unmix, as well as the example programs, has been written in Scheme
+extended with the following macros.
+
+
+GENERALIZED CASE-EXPRESSION
+
+        (MATCH  (arg ...)
+                (pat ...  & guard => exp ...) ...)
+
+The expressions "arg ..." are evaluated to produce S-expressions "S-exp
+...". "S-exp ..." are then matched against the corresponding patterns
+"pat ...". If the matching succeeds for some clause
+
+         (pat ... & guard => exp ...)
+
+the variables in "pat ..." get bound to the corresponding 
+subexpressions in "S-exp ...", and then the expression "guard" is 
+evaluated in the extended environment. If the result of "guard" is not 
+#f, the expressions "exp ..." are evaluated in the extended 
+environment, otherwise the next clause is tried.  If the guard is #t, 
+"& guard" may be omitted.
+
+The patterns have the following syntax:
+
+   <pat> ::= '<S-exp>             matches <S-exp>.
+           | <literal>            matches <literal>.
+           | <var>                matches anything, <var> is bound.
+           | _                    matches anything.
+           | (<var> as <pat>)     matches <pat>, <var> is bound.
+           | (<pat> . <pat>)      matches a pair with <pat>'s as elements.
+
+   <var> ::= <symbol>
+   <literal> ::=
+           | ()
+           | <boolean>
+           | <number>
+           | <character>
+           | <string>
+           | <vector>
+
+
+GENERALIZED LET-EXPRESSION
+
+        (WITH  ((pat arg) ...) exp ...)
+
+The expressions "arg ..." are evaluated to produce S-expressions "S-exp
+...". "S-exp ..." are supposed to match the patterns "pat ...", in which
+case the variables in "pat ..." get bound to the corresponding
+subexpressions in "S-exp ...", and then the expressions "exp ..." are
+evaluated in the extended environment.  If some of "S-exp ..." do not
+match against patterns "pat ...", the result of the form WITH is
+unspecified, because there is no actual analysis of the structure of
+"S-exp ...".  The syntax of patterns is exactly the same as in the case
+of the form MATCH.
+
+The form
+
+        (WITH* ((pat1 arg1) . (pat arg) ...) exp ...)
+
+is equivalent to
+
+        (WITH ((pat1 arg1)) (WITH* ((pat arg) ...) exp ...)
+
+
+RESTRICTED GENERALIZED CASE-EXPRESSION
+
+        (SELECT (arg ...)
+                (rpat ...  & guard => exp ...) ...)
+
+The expressions "arg ..." are evaluated to produce S-expressions "S-exp
+...". "S-exp ..." are then matched against the corresponding restricted
+patterns "rpat ...". If the matching succeeds for some clause
+
+        (rpat ... & guard => exp ...)
+
+the variables in "pat ..." get bound to the corresponding 
+subexpressions in "S-exp ...", and then the expression "guard" is 
+evaluated in the extended environment. If the result of "guard" is not 
+#f, the expressions "exp ..." are evaluated in the extended 
+environment, otherwise the next clause is tried. If the guard is #t, "& 
+guard" may be omitted.
+
+The syntax of restricted patterns coincides with that of the ordinary 
+patterns appearing in the construct MATCH described above, but their 
+meaning is slightly different.
+
+If a restricted pattern <pat> doesn't have the form (<pat'> . <pat''>), 
+it has the same meaning as the ordinary pattern <pat>.
+
+If an S-expression <S-exp> is not a pair, the result of matching 
+<S-exp> against a pattern (<pat'> . <pat''>) is unspecified (i.e.  
+matching <S-exp> against such a pattern may produce either an error or 
+unpredictable results).
+
+If an S-expression <S-exp> is a pair (<S-exp'> . <S-exp''>), and a 
+pattern <pat> has the form (<pat'> . ()), then <S-exp> matches <pat>, 
+iff <S-exp'> matches <pat'>. In other words, a restricted pattern of 
+the form (<pat'> . ()) is completely equivalent to the restricted 
+pattern (<pat'> . _).
+
+If an S-expression <S-exp> is a pair (<S-exp'> . <S-exp''>), and a 
+pattern has the form (<pat'> . <pat''>), where <pat''> is not (), then 
+<S-exp> matches <pat>, iff <S-exp'> matches <pat'> and <S-exp''> 
+matches <pat''>.
+
+The fact that restricted patterns are less careful at examining 
+S-expressions than the ordinary patterns are, enables them to be 
+compiled into efficient code.
+
+
+RCALL
+
+        (RCALL (fname arg ...))
+
+This construct is used for telling the specializer that the function
+call (fname arg ...) is a residual one. In all other respects this
+construct is equivalent to (fname arg ...).
+
+
+GENERALIZE
+
+        (GENERALIZE exp)
+
+This construct is used for telling the specializer that the result of
+specializing (GENERALIZE exp) must be dynamic even if exp is static. In
+all other respects this construct is equivalent to exp.
+
+

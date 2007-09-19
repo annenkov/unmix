@@ -1,0 +1,317 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                 ;;
+;;  File:     xgen.sex                                             ;;
+;;  Project:  the specializer Unmix                                ;;
+;;  Author:   S.A.Romanenko, the Institute for Applied             ;;
+;;            Mathematics, the USSR Acedemy of Sciences,           ;;
+;;            Moscow.                                              ;;
+;;  Created:  5 May 1989                                           ;;
+;;  Revised:  7 December 1989                                      ;;
+;;            6 April 1990                                         ;;
+;;            July 1990                                            ;;
+;;            December, 1992                                       ;;
+;;                                                                 ;;
+;;  Contents: The functions to run the Partial Evaluator,          ;;
+;;            residual program generators,                         ;;
+;;            and the Postprocessor.                               ;;
+;;                                                                 ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+(define (ugen:switch action)
+
+  ;;
+  ;; Makes the name of the residual program by putting
+  ;; together the names of data files.
+  ;;
+
+  (define (make-res-filename file-names)
+    (if (null? file-names)
+        "RES"
+        (merge-file-names file-names)))
+
+  (define (merge-file-names names)
+    (foldr1 (lambda (name1 name2)
+              (string-append name1 "-" name2))
+            (map uio:cut-off-ext names)))
+
+  ;;
+  ;; Requests names of files that contains values
+  ;; of static parameters.
+  ;;
+
+  (define (request-data-file-names)
+    (norm-ext*
+      "dat"
+      (request-tokens "Static data file names [.dat]: ")))
+
+  ;;
+  ;; Appends extension "ext" to the filenames in "names"
+  ;; that don't have one.
+  ;;
+
+  (define (norm-ext* ext names)
+    (map (lambda (name) (uio:norm-file-name "" ext name))
+         names))
+
+  ;;
+  ;; Requests and scans a string.
+  ;;
+
+  (define (request-tokens msg)
+
+    (define input-string #f)
+    (define len #f)
+    (define pos #f)
+    (define tokens #f)
+    (define current-token #f)
+
+    (define (current-char)
+      (string-ref input-string pos))
+
+    (define (scan-tokens!)
+      (cond
+        ((= pos len)
+         #f)
+        ((eqv? (current-char) #\space)
+         (set! pos (+ 1 pos)) (scan-tokens!))
+        (else
+          (set! current-token '()) (scan-1-token!))))
+
+    (define (scan-1-token!)
+      (cond
+        ((or (= pos len)
+             (eqv? (current-char) #\space))
+         (set! tokens
+               (cons (list->string (reverse current-token)) tokens))
+         (set! current-token '())
+         (scan-tokens!))
+        (else
+          (set! current-token (cons (current-char) current-token))
+          (set! pos (+ 1 pos))
+          (scan-1-token!))))
+
+    ;; ---------------------- ;;
+    ;;  (request-tokens msg)  ;;
+    ;; ---------------------- ;;
+
+    (newline) (display msg)
+    (do () ((not (char-ready?))) (read-char))
+    (set! input-string (uio:read-line))
+    (set! len (string-length input-string))
+    (set! pos 0)
+    (set! tokens '())
+    (scan-tokens!)
+    (reverse tokens))
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;                                                                 ;;
+  ;;                Generation of Residual Programs                  ;;
+  ;;                                                                 ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  ;;
+  ;;    The function takes as input an annotated Mixwell program
+  ;; in file "ann-file-name" and the values of the static parameters
+  ;; of the goal function in data files.
+  ;;    The result is the residual program obtained by partial
+  ;; evaluation of the Mixwell program with respect to its static
+  ;; parameter values.
+  ;;
+
+  (define (run-pe)
+    (newline)
+    (let* ((ann-file-name
+             (uio:request-file-name "Annotated program file name" "" "ann"))
+           (data-file-names
+             (request-data-file-names))
+           (res
+             (make-res-filename data-file-names))
+           (program
+             (uio:file->list ann-file-name))
+           (static-inputs
+             (append-map uio:file->list data-file-names)))
+      (pe-aux ann-file-name data-file-names res program static-inputs)))
+
+  ;;
+  ;;    The function takes as input an annotated Mixwell program
+  ;; in file "ann-file-name" and obtains the residual program by
+  ;; partial evaluation of the Mixwell program with respect to
+  ;; itself. The Mixwell is supposed to have one static input
+  ;; parameter.
+  ;;
+
+  (define (run-pepepe)
+    (newline)
+    (let* ((ann-file-name
+             (uio:request-file-name "Annotated program file name" "xpe" "ann"))
+           (res
+             (uio:request-name "Residual program file name " "GGG"))
+           (program (uio:file->list ann-file-name))
+           (static-inputs
+             (list program)))
+      (pe-aux ann-file-name (list ann-file-name) res program static-inputs)))
+
+  (define (generate-residual-program dst program static-inputs)
+    (ux:load "xmainpe")
+    (umainpe:generate-residual-program dst program static-inputs)
+    (set! umainpe:generate-residual-program  #f)
+    (set! xapply  #f))
+
+  (define (pe-aux src data-file-names res program static-inputs)
+    (let ((dst  (string-append res ".mwr"))
+          (scm  (string-append res ".scm")))
+      (check-static-inputs program static-inputs)
+      (newline)
+      (display "Residual program generation:") (newline)
+      (display "   pe( ") (display src) (display " , ")
+      (display data-file-names) (display " ) -> ") (display dst)
+      (newline)
+      (ux:load "xpe")
+      (generate-residual-program dst program static-inputs)
+      (newline)
+      (display "Residual program has been written into ") (display dst)
+      (newline)
+      (post-processing dst scm)))
+
+  (define (check-static-inputs prog data)
+    (with (( (rf ((_ svn _ _ _) . _) s-fundef*)  prog ))
+          (when (not (= (length svn) (length data)))
+                (error "Mismatch in mumber of data files"))))
+
+  ;;
+  ;; The function generates a generator of
+  ;; residual programs by partially evaluating
+  ;; the annotated partial evaluator
+  ;; with respect to an annotated program.
+  ;;
+
+  (define (run-pepe)
+    (newline)
+    (let* ((ann   (uio:request-file-name
+                    "Annotated program file name" "" "ann"))
+           (res   (uio:request-name
+                    "Residual program file name " "GENGEN"))
+           (dst   (string-append res ".mwr"))
+           (scm   (string-append res ".scm"))
+           (program
+             (uio:file->list (string-append **unmix-path** "xpe.ann")))
+           (static-inputs
+             (list (uio:file->list ann))))
+      (newline)
+      (display "Generation of the Residual Program Generator:") (newline)
+      (display "   pe( xpe.ann , ") (display (list ann))
+      (display " ) -> ") (display dst)
+      (newline)
+      (ux:load "xpe")
+      (generate-residual-program dst program static-inputs)
+      (newline)
+      (display "Residual program generator has been written into ")
+      (display dst) (newline)
+      (post-processing dst scm)))
+
+  ;;
+  ;; This function loads and runs a residual program generator
+  ;; produced by the function "gengen".
+  ;;
+
+  (define (run-gen)
+    (newline)
+    (let* ((gen
+             (uio:request-file-name "Generator file name" "" "scm"))
+           (data-file-names
+             (request-data-file-names))
+           (res  (make-res-filename data-file-names))
+           (dst  (string-append res ".mwr"))
+           (scm  (string-append res ".scm"))
+           (static-inputs
+             (append-map uio:file->list data-file-names)))
+      (newline)
+      (display "Residual program generation:") (newline)
+      (display "   ") (display gen) (display "( ")
+      (display (list data-file-names)) (display " ) -> ") (display dst)
+      (newline)
+      (load gen)
+      (generate-residual-program dst '() static-inputs)
+      (newline)
+      (display "Residual program has been written into ") (display dst)
+      (newline)
+      (post-processing dst scm)))
+
+  ;;
+  ;; This function converts an annotated Mixwell program to
+  ;; the residual program generator, which can be compiled into
+  ;; Scheme and run by the function "gen".
+  ;;
+
+  (define (run-gengen)
+    (newline)
+    (let* ((ann  (uio:request-file-name
+                   "Annotated program file name" "" "ann"))
+           (res  (uio:request-name
+                   "Residual program file name " "GENGEN"))
+           (dst      (string-append res ".mwr"))
+           (scm      (string-append res ".scm"))
+           (static-inputs
+             (list (uio:file->list ann))))
+      (ux:load "xggg")
+      (newline)
+      (display "Generation of the Residual Program Generator:") (newline)
+      (display "   gengen( ") (display ann) (display " ) -> ") (display dst)
+      (newline)
+      (generate-residual-program dst '() static-inputs)
+      (newline)
+      (display "Residual program generator has been written into ")
+      (display dst) (newline)
+      (post-processing dst scm)))
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;                                                                 ;;
+  ;;               Post-processing Residual Programs                 ;;
+  ;;                                                                 ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  ;;
+  ;;    The function takes as input a Mixwell program and does
+  ;; the following transformations of the program:
+  ;;    (1) the first Call Graph Reduction,
+  ;;    (2) Arity Raising,
+  ;;    (3) the second Call Graph Reduction,
+  ;;    (4) Compilation from Mixwell into Scheme.
+  ;;
+
+  (define (post-processing src dst)
+    (let ((pgm      (uio:cut-off-ext src))
+          (program  #f))
+      (newline)
+      (display "Post-processing:") (newline)
+      (display "   post( ") (display src) (display " ) -> ") (display dst)
+      (newline)
+      (set! program (uio:file->list src))
+      (ux:load "xcgr")
+      (set! program (ucgr:main pgm pgm program))
+      (set! ucgr:main  #f)
+      (ux:load "xar")
+      (set! program (uar:main pgm pgm program))
+      (set! uar:main  #f)
+      (ux:load "xcgr")
+      (set! program (ucgr:main pgm pgm program))
+      (set! ucgr:main  #f)
+      (ux:load "xensg")
+      (set! program (uensg:main pgm pgm program))
+      (set! uensg:main #f)
+      (uio:list->pp-file dst program 79)
+      (newline)
+      (display "Target program has been written into ") (display dst)
+      (newline)))
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;  (ugen:switch action)  ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  (case action
+    ((pe)     (run-pe))
+    ((pepe)   (run-pepe))
+    ((pepepe) (run-pepepe))
+    ((gengen) (run-gengen))
+    ((gen)    (run-gen))))

@@ -1,0 +1,167 @@
+;; File: prs.sex
+
+;; This is an example program to be specialized.
+
+;;
+;; LL(1) parser.
+;;
+
+(define (parse grammar input)
+  (with (( (start . table)  grammar )
+         )
+        (check (rcall (match-symbol table start input)))
+        ))
+
+(define (check outcome)
+  (with (( (error . tail)  outcome ))
+        (and (not error) (null? tail))
+        ))
+
+(define (match-symbol table x input)
+  (match-group table (find-group x table) input)
+  )
+
+(define (match-symbol-n table x)
+  (match-group-n table (find-group x table))
+  )
+
+(define (match-symbol-k table x k input)
+  (match-group-k table (find-group x table) k input)
+  )
+
+(define (match-group table rule* input)
+  (with (( (s0 . rule*)  rule* ))
+        (select
+          (input)
+
+          (() =>
+           (select
+             (s0)
+
+             ('error => `(#t . ,input))
+
+             (_ => `(,(match-string-n table s0) . ()))
+
+             ))
+
+          ((a . tail) =>
+           (find-rule table rule* input))
+
+          )))
+
+(define (match-group-n table rule*)
+  (with (( (s0 . rule*)  rule* ))
+        (select
+          (s0)
+
+          ('error => #t)
+
+          (_ => (match-string-n table s0))
+
+          )))
+
+(define (match-group-k table rule* k input)
+  (with (( (s0 . rule*)  rule* ))
+        (find-rule-k table rule* k input)
+        ))
+
+(define (find-rule table rule* input)
+  (with (( (a . tail)  input ))
+        (select
+          (rule*)
+
+          (() => `(#t . ,input))
+
+          ((b s . rest) =>
+           (if (equal? a b)
+               (match-string-k table s b input)
+               (find-rule table rest input)
+               ))
+
+          )))
+
+(define (find-rule-k table rule* k input)
+  (select
+    (rule*)
+
+    (() => `(#t . ,input))
+
+    ((b s . rest) =>
+     (if (equal? k b)
+         (match-string-k table s b input)
+         (find-rule-k table rest k input)
+         ))
+
+    ))
+
+(define (match-string table s input)
+  (select
+    (s)
+
+    (() => `(#f . ,input))
+
+    ((x . rest) =>
+     (if (terminal-symbol? x)
+        (select
+          (input)
+
+          (() => `(#t . ,input))
+
+          ((a . tail) => (if (equal? a x)
+                             (match-string table rest tail)
+                             `(#t . ,input)
+                             ))
+          )
+         (if (null? rest)
+             (match-symbol table x input)
+             (check-outcome table rest (match-symbol table x input))
+             )))
+
+    ))
+
+(define (match-string-n table s)
+  (select
+    (s)
+
+    (() => '())
+
+    ((x . rest) =>
+     (if (terminal-symbol? x)
+         #t
+         (and (match-symbol-n table x)
+              (match-string-n table rest))
+         ))
+    ))
+
+(define (match-string-k table s k input)
+  (select
+    (s)
+
+    (() => `(#f . ,input))
+
+    ((x . rest) =>
+     (if (terminal-symbol? x)
+         (if (equal? k x)
+             (match-string table rest (cdr input))
+             `(#t . ,input)
+             )
+         (if (null? rest)
+             (match-symbol-k table x k input)
+             (check-outcome
+               table rest
+               (match-symbol-k table x k input)))
+         ))
+    ))
+
+(define (check-outcome table rest outcome)
+  (with (( (error . tail)  outcome ))
+        (if error
+            outcome
+            (match-string table rest tail)
+            )))
+
+(define (find-group x table)
+  (cdr (assoc x table)))
+
+(define (terminal-symbol? x) (not (pair? x)))
+

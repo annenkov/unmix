@@ -1,0 +1,633 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                 ;;
+;;  File:     xctmw.scm                                            ;;
+;;  Project:  the specializer Unmix                                ;;
+;;  Author:   S.A.Romanenko, the Institute for Applied             ;;
+;;            Mathematics, the USSR Acedemy of Sciences,           ;;
+;;            Moscow.                                              ;;
+;;  Created:  1 August 1990                                        ;;
+;;  Revised:  December, 1992                                       ;;
+;;                                                                 ;;
+;;  Contents: A compiler from a subset of Scheme                   ;;
+;;            to Mixwell.                                          ;;
+;;                                                                 ;;
+;;  Synopsis:                                                      ;;
+;;            (uctmw:Scheme-to Mixwell src dst sc-prog)            ;;
+;;                                                                 ;;
+;;            src      - source program name                       ;;
+;;            dst      - destination program name                  ;;
+;;            sc-prog  - a Scheme program                          ;;
+;;                                                                 ;;
+;;  Description:                                                   ;;
+;;            Compiles the Scheme program "sc-prog"                ;;
+;;            into Mixwell program.                                ;;
+;;                                                                 ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+;;      Data structures used by the compiler:
+;;      ====================================
+;;
+;;      Function Name Environment:
+;;
+;;        <FunEnv>    ::= ( <FunDescr>* )
+;;        <FunDescr>  ::= ( <Fname> . <ParList> )
+;;
+;;        The function name environment contains the names and the
+;;        formal parameter lists of all the Scheme functions being
+;;        compiled.
+;;
+;;      Variable Name Environment:
+;;
+;;        <VarEnv>    ::= ( <Vname>* )
+;;
+;;        The variable name environment is a list of variable
+;;        names.
+;;
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                 ;;
+;;            Compilation of Scheme Programs to Mixwell            ;;
+;;                                                                 ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+(define (uctmw:compile-program sc-prog)
+
+  ;;
+  ;; Checks syntax of the Scheme program.
+  ;;
+
+  (define (check-program fundef*)
+    (when (not (syntax-match?
+                 '(define) '((define (fname par ...) body) ...) fundef*))
+      (error "ill-formed function definition list" fundef*))
+    (for-each (lambda (fundef)
+                (with (( ('define (fname . pars) body)  fundef ))
+                  (when (or (not (symbol? fname))
+                            (not (and-map symbol? pars))
+                            (duplicate-symbols? pars))
+                    (error "ill-formed function definition"))))
+      fundef*))
+
+  ;;
+  ;; Creates and returns a function name environment
+  ;; for the Scheme program "sc-prog".
+  ;;
+
+  (define (make-fun-env fundef*)
+    (map cadr fundef*))
+
+  ;; Compiles each element of the list "fundef" of Scheme function
+  ;; definitions in the function name environment "funenv".
+  ;; Returns a list of the compiled functions.
+
+  (define (compile-fundef-list fundef* funenv)
+    (map (lambda (fundef) (compile-fundef fundef funenv)) fundef*))
+
+  ;;
+  ;; Creates a variable name environment and compiles the Scheme
+  ;; function definition into an equivalent Mixwell function definition,
+  ;; which is returned.
+  ;;
+
+  (define (compile-fundef fundef funenv)
+    (with*
+      (( ('define (fname . pars) body)  fundef )
+       ( exp     (compile-exp body pars funenv) )
+       )
+      `(,fname ,pars = ,exp)))
+
+  ;;
+  ;; Compiles a Scheme expression into its Mixwell equivalent,
+  ;; which is returned.
+  ;;
+
+  (define (compile-exp exp varenv funenv)
+    (check-exp exp varenv funenv)
+    (select
+      (exp)
+
+      (_ & (symbol? exp) => exp)
+
+      (_ & (literal? exp) => `(quote ,exp))
+
+      (('quote _) => exp)
+
+      (('quasiquote template) =>
+       (compile-template template 1 varenv funenv))
+
+      (('list . exp*) =>
+       (compile-exp
+         (foldr (lambda (exp1 exp0) `(cons ,exp1 ,exp0)) ''() exp*)
+         varenv funenv))
+
+      (('if exp1 exp2 exp3) =>
+       (gen-if (compile-exp exp1 varenv funenv)
+               (compile-exp exp2 varenv funenv)
+               (compile-exp exp3 varenv funenv)))
+
+      (('cond . clause*) =>
+       (compile-cond clause* varenv funenv))
+
+      (('let bindings exp0) =>
+       (gen-let (compile-bindings bindings varenv funenv)
+                (compile-exp
+                  exp0
+                  (extend-varenv bindings varenv)
+                  funenv)))
+
+      (('let* binding* exp0) =>
+       (compile-exp
+         (foldr (lambda (binding body) `(let (,binding) ,body))
+                exp0 binding*)
+         varenv funenv))
+
+      (('case key . clause*) =>
+       (compile-exp (expand-case key clause*) varenv funenv))
+
+      (('begin . exp+) =>
+       (compile-exp (car (last-pair exp+)) varenv funenv))
+
+      (('and . exp*) =>
+        (compile-exp (expand-and exp*) varenv funenv))
+
+      (('or . exp*) =>
+        (compile-exp (expand-or exp*) varenv funenv))
+
+      (('error . exp*) =>
+       `(error . ,(compile-exp* exp* varenv funenv)))
+
+      (('rcall exp1) =>
+       (gen-rcall (compile-exp exp1 varenv funenv)))
+
+      (('generalize exp1) =>
+       `(generalize ,(compile-exp exp1 varenv funenv)))
+
+      ((fname . exp*) =>
+       (let ((fdescr (assq fname funenv)))
+         (cond
+           (fdescr
+             `(call ,fname . ,(compile-exp* exp* varenv funenv)))
+           ((c...r? fname)
+            (compile-exp (expand-c...r exp) varenv funenv))
+           ((ux:macro? fname)
+            (compile-exp (ux:macroexpand-1 exp) varenv funenv))
+           (else
+             (make-xcall fname (compile-exp* exp* varenv funenv)))
+           )))
+
+      ))
+
+  (define (compile-exp* exp* varenv funenv)
+    (map (lambda (exp) (compile-exp exp varenv funenv)) exp*))
+
+  (define (compile-cond clause* varenv funenv)
+    (match
+      (clause*)
+
+      (() => ''*UNSPECIFIED*)
+
+      ((('else exp) . _) =>
+       (compile-exp exp varenv funenv))
+
+      (((test exp) . rest) =>
+       (gen-if (compile-exp test varenv funenv)
+               (compile-exp exp varenv funenv)
+               (compile-cond rest varenv funenv)))
+
+      ))
+
+
+  (define (compile-template t depth varenv funenv)
+    (if (= depth 0)
+      (compile-exp t varenv funenv)
+      (match
+        (t)
+
+        (_ & (or (null? t) (boolean? t) (number? t)
+                 (char? t) (string? t) (symbol? t))
+         => `(quote ,t))
+
+        (_ & (vector? t) =>
+         `(vector 
+           . ,(map (lambda (x) (compile-template x depth varenv funenv))
+                   (vector->list t))))
+
+        (('unquote x) =>
+         (if (= depth 1)
+           (compile-exp x varenv funenv)
+           (mk-unary 'unquote
+                     (compile-template x (- depth 1) varenv funenv))))
+
+        (('quasiquote x) =>
+         (mk-unary 'quasiquote
+                   (compile-template x (+ 1 depth) varenv funenv)))
+
+        ((('unquote-splicing x) . t2) =>
+         (if (= depth 1)
+           `(append ,(compile-exp x varenv funenv)
+                    ,(compile-template t2 depth varenv funenv))
+
+           `(cons ,(mk-unary
+                     'unquote-splicing
+                     (compile-template x (- depth 1) varenv funenv))
+                  ,(compile-template t2 depth varenv funenv))))
+
+        ((t1 . t2) =>
+         `(cons ,(compile-template t1 depth varenv funenv)
+                ,(compile-template t2 depth varenv funenv)))
+
+        )))
+
+  (define (mk-unary key arg)
+    `(cons ',key (cons ,arg '())))
+
+  (define (compile-bindings bindings varenv funenv)
+    (map (lambda (binding)
+           (with (( (vname exp)  binding ))
+                 `(,vname ,(compile-exp exp varenv funenv))
+                 ))
+         bindings
+         ))
+
+  (define (expand-case key clause*)
+    (if (symbol? key)
+      `(cond . ,(map (lambda (clause) (expand-case-clause key clause))
+                     clause*))
+      (let ((x (ux:gentemp)))
+        `(let ((,x ,key))
+           (cond . ,(map (lambda (clause) (expand-case-clause x clause))
+                         clause*))))))
+
+  (define (expand-case-clause x clause)
+    (match
+      (clause)
+
+      (('else . exp*) =>
+       clause)
+
+      (((tag) . exp*) =>
+       `((eqv? ,x ',tag) . ,exp*))
+
+      ((tag* . exp*) & (list? tag*) =>
+       `((memv ,x ',tag*) . ,exp*))
+
+      (_ =>
+        (error "ill-formed clause in case:" clause))
+
+      ))
+
+  (define (expand-and exp*)
+    (match
+      (exp*)
+
+      (() => #t)
+
+      ((test) => test)
+
+      ((test . rest) =>
+       (cond ((symbol? test)
+              `(if ,test ,(expand-and rest) ,test))
+             ((boolean-result? test)
+              `(if ,test ,(expand-and rest) #f))
+             (else
+               (let ((x (ux:gentemp)))
+                 `(let ((,x ,test))
+                    (if ,x ,(expand-and rest) ,x))))
+
+      ))))
+
+  (define (expand-or exp*)
+    (match
+      (exp*)
+
+      (() => #f)
+
+      ((test) => test)
+
+      ((test . rest) =>
+       (cond ((symbol? test)
+              `(if ,test ,test ,(expand-or rest)))
+             ((boolean-result? test)
+              `(if ,test #t ,(expand-or rest)))
+             (else
+               (let ((x (ux:gentemp)))
+                 `(let ((,x ,test))
+                    (if ,x ,x ,(expand-or rest)))))
+
+      ))))
+
+  ;;
+  ;; Determines whether "exp" returns Boolean results.
+  ;;
+
+  (define (boolean-result? exp)
+    (match
+      (exp)
+
+      ((fname . _) & (symbol? fname) =>
+       (memq fname '(null? pair? eq? eqv? equal? = > < >= <=
+                     not boolean? number? symbol? char? string? vector?)))
+
+      (_ => #f)
+
+      ))
+
+  ;;
+  ;; Extends variable environment with new local variables.
+  ;;
+
+  (define (extend-varenv bindings varenv)
+    `(,@(map car bindings) . ,varenv))
+
+  ;;
+  ;; Inserts the keyword "xcall" to avoid confusion
+  ;; of function names with some keywords used to annotate
+  ;; Mixwell programs.
+  ;;
+
+  (define (make-xcall fname exp*)
+    (if (memq fname '(static ifs ifd call rcall xcall))
+        `(xcall ,fname . ,exp*)
+        `(,fname . ,exp*)))
+
+  ;;
+  ;; Matches a form against a pattern.
+  ;;
+
+  (define (check-syntax pat exp)
+    (if (not (syntax-match? '() (cdr pat) (cdr exp)))
+      (error "ill-formed expression" exp)))
+
+  ;;
+  ;; Checks syntax of Scheme expressions.
+  ;;
+
+  (define (check-exp exp varenv funenv)
+    (match
+      (exp)
+
+      (_ & (symbol? exp) =>
+       (when (not (memq exp varenv))
+             (error "unknown variable" exp)))
+
+      (_ & (literal? exp) => #f)
+
+      ((exp0 . _) & (not (symbol? exp0)) =>
+       (check-syntax '(e e ...) exp))
+
+      (('quote . _) => (check-arity exp 1))
+
+      (('quasiquote . _) =>
+       (check-arity exp 1)
+       (check-template (cadr exp) 1))
+
+      (('if . _) => (check-arity exp 3))
+
+      (('cond . _) =>
+       (check-syntax '(cond (p e) ...) exp))
+
+      (('let . _) =>
+       (check-syntax '(let ((v e) ...) e) exp)
+       (check-bindings (cadr exp)))
+
+      (('let* . _) =>
+       (check-syntax '(let ((v e) ...) e) exp)
+       (check-bindings (cadr exp)))
+
+      (('case . _) =>
+       (check-syntax '(case e (t e e ...) ...) exp))
+
+      (('and . _) =>
+       (check-syntax '(and e ...) exp))
+
+      (('or . _) =>
+       (check-syntax '(or e ...) exp))
+
+      (('error . exp*) =>
+       (check-syntax '(error exp1 exp2 ...) exp))
+
+      (('rcall . _) =>
+       (check-arity exp 1))
+
+      (('generalize . _) =>
+       (check-arity exp 1))
+
+      ((fname . exp*)
+       & (and (symbol? fname) (list? exp*))
+       =>
+       (when (memq fname '(define lambda set! set-car! set-cdr! letrec do))
+             (error "unacceptable expression" exp))
+       (when (memq fname '(unquote unquote-splicing))
+             (error "misplaced unquotation" exp))
+       (when (memq fname varenv)
+             (error "a parameter used as a function name" exp))
+       (let ((fdescr (assq fname funenv)))
+         (cond
+           (fdescr
+             (check-arity exp (length (cdr fdescr))))
+           ((built-in? fname)
+            (check-arity exp (built-in-arity fname)))
+           ((c...r? fname)
+            (check-arity exp 1))
+           (else #f))))
+
+      (_ => (error "ill-formed expression" exp))
+
+      ))
+
+  (define (check-template t depth)
+    (if (= depth 0) #t
+      (match
+        (t)
+
+        (_ & (or (null? t) (boolean? t) (number? t)
+                 (char? t) (string? t) (symbol? t)) =>
+         #f)
+
+        (_ & (vector? t) =>
+         (vector-for-each (lambda (x) (check-template x depth)) t))
+
+        (('unquote . _) =>
+         (check-arity t 1)
+         (check-template (cadr t) (- depth 1)))
+
+        (('unquote-splicing . _) =>
+         (error "misplaced unquotation" t))
+
+        (('quasiquote . _) =>
+         (check-arity t 1)
+         (check-template (cadr t) (+ 1 depth)))
+
+        ((t1 . t2) =>
+         (check-splicing t1 depth) (check-template t2 depth))
+
+        )))
+
+  (define (check-splicing t depth)
+    (match
+      (t)
+
+      (('unquote-splicing . _) =>
+       (check-arity t 1)
+       (check-template (cadr t) (- depth 1)))
+
+      (_ =>
+       (check-template t depth))
+
+      ))
+
+  (define (check-bindings binding*)
+    (for-each
+      (lambda (binding)
+        (match
+          (binding)
+
+          ((vname exp) & (symbol? vname) => '())
+
+          (_ => (error "ill-formed binding list" binding*))
+
+          ))
+      binding*
+      )
+    (when (duplicate-symbols? (map car binding*))
+          (error "Duplicate variables in bindings" binding*))
+    )
+
+  (define (check-arity exp arity)
+    (when (not (list? exp))
+          (error "ill-formed expression" exp))
+    (with (( (fname . exp*)  exp ))
+          (when (not (eqv? (length exp*) arity))
+                (error "Wrong number of argument expressions" exp))))
+
+  ;;
+  ;; Local optimization of some constructs.
+  ;;
+
+  (define (gen-if exp0 exp1 exp2)
+    (match
+      (exp0)
+
+      (('quote x) => (if x exp1 exp2))
+
+      (('if p ('quote x) ('quote y))
+       & (and (not x) y) =>
+       `(if ,p ,exp2 ,exp1))
+
+      ;;  (('if p a b) =>
+      ;;    `(if ,p
+      ;;         ,(gen-if a exp1 exp2)
+      ;;         ,(gen-if b exp1 exp2)))
+
+      (_ =>
+         `(if ,exp0 ,exp1 ,exp2))
+
+      ))
+
+  (define (gen-let bindings exp0)
+    (if (null? bindings)
+        exp0
+        `(let ,bindings ,exp0)))
+
+  (define (gen-rcall exp)
+    (select (exp)
+            (('call fname . exp*) =>
+             `(rcall ,fname . ,exp*))
+            (_ =>
+               (error "Expression cannot be annotated with 'rcall'"
+                      exp))
+            ))
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;                                                                 ;;
+  ;;    Built-in functions ...                                       ;;
+  ;;                                                                 ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  (define built-in-arities
+    '((car . 1) (cdr . 1) (cons . 2)
+      (null? . 1) (pair? . 1)
+      (equal? . 2) (eq? . 2) (eqv? . 2)
+      (not . 1)
+      ))
+
+  (define (built-in? fname)
+    (memq fname built-in-arities))
+
+  (define (built-in-arity fname)
+    (cdr (assq fname built-in-arities)))
+
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;                                                                 ;;
+  ;;                   Car/cdr Sequence Handling                     ;;
+  ;;                                                                 ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  (define (c...r? fname)
+    (assq fname c...r-list))
+
+  (define (expand-c...r exp)
+    (match
+      (exp)
+
+      ((fname exp1)
+       & (symbol? fname) =>
+       (let ((decomp (c...r? fname)))
+         (if decomp
+             (with (( (_ sel1 . sel2)  decomp ))
+                   `(,sel1 ,(expand-c...r `(,sel2 ,exp1))))
+             exp)))
+
+      (_ => exp)
+
+      ))
+
+  (define c...r-list
+    '((caar   car . car  ) (cadr   car . cdr  )
+      (cdar   cdr . car  ) (cddr   cdr . cdr  )
+      (caaar  car . caar ) (caadr  car . cadr )
+      (cadar  car . cdar ) (caddr  car . cddr )
+      (cdaar  cdr . caar ) (cdadr  cdr . cadr )
+      (cddar  cdr . cdar ) (cdddr  cdr . cddr )
+      (caaaar car . caaar) (caaadr car . caadr)
+      (caadar car . cadar) (caaddr car . caddr)
+      (cadaar car . cdaar) (cadadr car . cdadr)
+      (caddar car . cddar) (cadddr car . cdddr)
+      (cdaaar cdr . caaar) (cdaadr cdr . caadr)
+      (cdadar cdr . cadar) (cdaddr cdr . caddr)
+      (cddaar cdr . cdaar) (cddadr cdr . cdadr)
+      (cdddar cdr . cddar) (cddddr cdr . cdddr)
+      ))
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;                                                                 ;;
+  ;;                     Miscellaneous Functions                     ;;
+  ;;                                                                 ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  ;; Recognizes literal constants.
+
+  (define (literal? x)
+    (or (boolean? x)
+        (number? x)
+        (char? x)
+        (string? x)
+        (vector? x)))
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;; (uctmw:compile-program sc-prog) ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  ;;
+  ;; Creates a function name environment and starts compilation.
+  ;; Returns the Mixwell equivalent of "sc-prog".
+  ;;
+
+  (check-program sc-prog)
+  (let ((funenv  (make-fun-env sc-prog)))
+    (compile-fundef-list sc-prog funenv)))
+

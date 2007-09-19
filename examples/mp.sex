@@ -1,0 +1,271 @@
+;
+; File: mp.sex
+;
+
+
+; An interpreter for a simple imperative programming language
+; with lists as data type.
+
+
+; Syntax of input programs:
+; ========================
+;
+; <Program> ::= ( program <Pars> <Vars> <Cmd> )
+; <Pars>    ::= ( pars <Vname>* )
+; <Vars>    ::= ( dec <Vname>* )
+; <Cmd>     ::= ( := <Vname> <Exp> )
+;             | ( if <Exp> <Cmd> <Cmd> )      -- first branch iff
+;                                                <Exp> not nil
+;             | ( while <Exp> <Cmd> )         -- iterate while
+;                                                <Exp> not nil
+;             | ( stop <Exp> )                -- terminate the
+;                                                program execution
+;                                                with the result <Exp>
+;             | ( seq <Cmd>* )
+; <Exp>     ::= ( quote <LispSexp> )          -- constant
+;             | <Vname>
+;             | ( car <Exp> )
+;             | ( cdr <Exp> )
+;             | ( cons <Exp> <Exp> )
+;             | ( atom? <Exp> )               -- nil iff not atom
+;             | ( equal? <Exp> <Exp> )        -- nil iff unequal
+
+
+
+;   Programs are given a fixed number of input values, which are
+; bound to the variables named in the (pars ...) list.
+;   The other variables are initially all nil.
+;   The semantics resembles that of Pascal, with the exceptions
+; that:
+;     1) the if command takes its first branch if the expression
+;        is non-nil,
+;     2) the while loops as long as the expression is non-nil.
+
+
+; Main data stuctures in the interpreter:
+; ======================================
+;
+;   The variables program cmd, exp, vars, and pars
+; take values that are program fragments conforming to
+; the syntax <program>, <cmd>, etc above.
+;   The variable cont is a stack of continuations, i.e.
+; program fragments whose execution has been postponed.
+;   The variable vn is a list of variable names.
+;   The variables vv, vv0 are lists of variable values (states).
+
+
+; Main functions in the interpreter:
+; ==================================
+;
+; "MP-int" interprets entire MP programs, "Cont" chooses
+; the command to be interpreted next, "Cmd"
+; interprets commands. "Exp" interprets expressions
+; and returns the value of an expression.
+
+; *******************************************************************
+; *** Start of MP ***************************************************
+; *******************************************************************
+
+
+; - MP --------------------------------------------------------------
+; program       - the program to be interpreted
+; input         - the input to 'program'
+; Returns       - a list of the final values of the interpreted
+;                 program's variables.
+; -------------------------------------------------------------------
+
+(define (mp program input)
+  (with (( ('program pars vars cmd)  program )
+         )
+        (with (( ('pars . parlist)  pars)
+               ( ('dec  . varlist)  vars)
+               )
+              (let ((vn  `(,@parlist . ,varlist))
+                    (vv  (init-store parlist varlist input))
+                    )
+                (exec-cmd cmd '() vn vv)))))
+
+; - Exec-Cmd --------------------------------------------------------
+; Interpreting a statement in environment (vn,vv).
+; The variable "cont" containes statements to be
+; interpreted after the statement.
+; -------------------------------------------------------------------
+
+(define (exec-cmd cmd cont vn vv)
+
+  (select
+    (cmd)
+
+    ((':= vname exp) =>
+     (let (
+           (vv (update vn vv vname (eval-exp exp vn vv)))
+           )
+       (exec-cont cont vn vv)))
+
+    (('if condition cmd1 cmd2) =>
+     (if (not (null? (eval-exp condition vn vv)))
+         (exec-cmd cmd1 cont vn vv)
+         (exec-cmd cmd2 cont vn vv)))
+
+    (('while condition body) =>
+     (exec-cmd
+       `(if ,condition (seq ,body ,cmd) (seq))
+       cont vn vv))
+
+    (('seq . cmd*) =>
+     (exec-cont `(,@cmd* . ,cont) vn vv))
+
+    (('stop exp) =>
+     (eval-exp exp vn vv))
+
+    (_ =>
+       (error "Unknown command: " cmd))
+
+    ))
+
+; - Exec-Cont -------------------------------------------------------
+; Gets the top command from the stack of continuations
+; -------------------------------------------------------------------
+
+(define (exec-cont cont vn vv)
+  (select
+    (cont)
+
+    (() => (error "Unexpected end of program" vv))
+
+    ((cmd . rest) => (exec-cmd cmd rest vn vv))
+
+    ))
+
+; - Eval-Exp --------------------------------------------------------
+; Evaluate an expression in environment (vn,vv).
+; -------------------------------------------------------------------
+
+(define (eval-exp exp vn vv)
+  (select
+    (exp)
+
+    (vname
+      & (symbol? vname) =>
+      (lookup-var vn vv vname))
+
+    (('quote lisp-exp) =>
+     lisp-exp)
+
+    (('car e) =>
+     (car (eval-exp e vn vv)))
+
+    (('cdr e) =>
+     (cdr (eval-exp e vn vv)))
+
+    (('atom? e) =>
+     (not (pair? (eval-exp e vn vv))))
+
+    (('cons e1 e2) =>
+     (cons (eval-exp e1 vn vv)
+           (eval-exp e2 vn vv)))
+
+    (('equal? e1 e2) =>
+     (equal? (eval-exp e1 vn vv)
+             (eval-exp e2 vn vv)))
+
+    (_ =>
+       (error "Unknown expression: " exp))
+
+    ))
+
+; - Init-vn ---------------------------------------------------------
+; Make a list of names of declared variables and parameters.
+; -------------------------------------------------------------------
+
+(define (init-vn vars pars)
+  (select
+    (vars)
+
+    (() =>
+     pars)
+
+    ((head . rest) =>
+     `(,head . ,(init-vn rest pars)))
+
+    ))
+
+; - Init-Store ------------------------------------------------------
+; Initialize store with input values for input parameters and
+; and with nils for declared variables.
+; -------------------------------------------------------------------
+
+(define (init-store pars vars input)
+  (select
+    (pars)
+
+    (() => (init-vars vars))
+
+    ((head . rest) =>
+     `(,(car input) . ,(init-store rest vars (cdr input))))
+
+    ))
+
+; - Init-Vars--------------------------------------------------------
+; Make a list of values of declared variables (which are initialized
+; to nil).
+; -------------------------------------------------------------------
+
+(define (init-vars vars)
+  (select
+    (vars)
+    
+    (() => '())
+    
+    ((head . rest) =>
+     `(() . ,(init-vars rest)))
+    
+    ))
+
+; - Update ----------------------------------------------------------
+; Update the value of a variable.
+; -------------------------------------------------------------------
+
+(define (update vn vv vname value)
+  (select
+    (vn)
+
+    (() =>
+     (error "Unknown variable: " vname))
+
+    ((vn-head . vn-rest) =>
+     (with (
+            ((vv-head . vv-rest) vv)
+            )
+           (if (equal? vn-head vname)
+               `(,value . ,vv-rest)
+               `(,vv-head . ,(update vn-rest vv-rest vname value)))))
+
+    ))
+
+; - Lookup-var ------------------------------------------------------
+; Get the value of a variable.
+; -------------------------------------------------------------------
+
+(define (lookup-var vn vv vname)
+  (select
+    (vn)
+
+    (() =>
+     (error "Unknown variable: " vname))
+
+    ((vn-head . vn-rest) =>
+     (with (
+            ((vv-head . vv-rest) vv)
+            )
+           (if (equal? vn-head vname)
+               vv-head
+               (lookup-var vn-rest vv-rest vname))))
+
+    ))
+
+
+; *******************************************************************
+; *************************** End of MP *****************************
+; *******************************************************************
+

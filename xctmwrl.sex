@@ -1,0 +1,358 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                 ;;
+;;  File:     xctmwrl.s                                            ;;
+;;  Project:  the specializer Unmix                                ;;
+;;  Author:   S.A.Romanenko, the Institute for Applied             ;;
+;;            Mathematics, the USSR Acedemy of Sciences,           ;;
+;;            Moscow.                                              ;;
+;;  Created:  1 August 1990                                        ;;
+;;  Revised:  October 1993                                         ;;
+;;                                                                 ;;
+;;  Contents: Two peaces of the compiler from a subset of          ;;
+;;            Scheme to Mixwell.                                   ;;
+;;                                                                 ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                 ;;
+;;        Elimination of the superfluous "let" constructs          ;;
+;;              and renaming of all local variables                ;;
+;;                introduced by "let" constructs                   ;;
+;;                                                                 ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define (uctmwrl:rem-let-prog prog)
+
+  ;; Removes some "let" constructs from a function definition.
+
+  (define (rem-let-fundef fundef)
+    (with (( (fname pars '= exp)  fundef ))
+          (init-let-var)
+          `(,fname ,pars = ,(rem-let-exp exp))))
+
+  ;; Removes some "let" constructs from the expression "exp".
+
+  (define (rem-let-exp exp)
+    (select
+      (exp)
+
+      (_ & (symbol? exp) =>
+             exp)
+
+      (('quote _) => exp)
+
+      (('let bindings exp0) =>
+       (let ((bindings  (map rem-let-binding bindings))
+             (exp0      (rem-let-exp exp0)))
+         (with (( (bindings . varenv)  (look-at-bindings bindings exp0) ))
+               (gen-let bindings (substitute exp0 varenv)))))
+
+      ((&call . fname_exp*)
+       & (memq &call '(call rcall xcall)) =>
+	(with (( (fname . exp*) fname_exp* ))
+	       `(,&call ,fname . ,(map rem-let-exp exp*))))
+
+      ((op . exp*) =>
+       `(,op . ,(map rem-let-exp exp*)))
+
+      ))
+
+  (define (rem-let-binding binding)
+    (with (( (vname exp)  binding ))
+          `(,vname ,(rem-let-exp exp))))
+
+  ;;
+  ;;   Inspects the list of bindings "bindings"
+  ;; and returns a new list of bindings and
+  ;; an environment that binds old variable names
+  ;; with the expressions to be substituted for
+  ;; these variables in "exp0".
+  ;;   Each binding of the form "(vname . exp)" is processed
+  ;; as follows.
+  ;;   If "exp" is a variable, the binding is removed and
+  ;; "exp" is substituted for "vname" in "exp0".
+  ;;   If "vname" doesn't appear in "exp0", the binding is removed.
+  ;;   If "vname" appears in any branch of "exp0" no more than once,
+  ;; the binding is removed and "exp" is substituted for "vname"
+  ;; in "exp0".
+  ;;   Otherwise, a new variable name "new-vname" is generated,
+  ;; the binding is replaced with "(new-vname . exp)" and
+  ;; "new-vname" is substituted for "vname" in "exp0".
+  ;;
+
+  (define (look-at-bindings bindings exp0)
+    (let loop ((old-b bindings)
+               (new-b '())
+               (varenv '()))
+      (if (null? old-b)
+          `(,(reverse new-b) . ,varenv)
+          (with
+            (( ((vname  exp) . rest)  old-b ))
+            (if (symbol? exp)
+                (loop rest new-b `((,vname . ,exp) . ,varenv))
+                (select
+                  ((max-occurrences vname exp0))
+
+                  (0 =>
+                     (loop rest new-b varenv))
+                  (1 =>
+                     (loop rest new-b `((,vname . ,exp) . ,varenv)))
+                  (_ =>
+                     (let ((newvar  (gen-let-var)))
+                       (loop rest
+                             `((,newvar ,exp) . ,new-b)
+                             `((,vname . ,newvar) . ,varenv))))
+                  ))))))
+
+  ;;
+  ;;   Replaces all variables in "exp" with some expressions
+  ;; according to the variable environment "varenv".
+  ;;   All local variables in "exp" are supposed to have been
+  ;; renamed, so we don't have to take care of variable clashes.
+  ;;
+
+  (define (substitute exp varenv)
+    (select
+      (exp)
+
+      (vname & (symbol? vname) =>
+             (let ((vdescr (assq vname varenv)))
+               (if vdescr (cdr vdescr) vname)))
+
+      (('quote _) => exp)
+
+      (('let bindings exp0) =>
+       `(let ,(substitute-bindings bindings varenv)
+          ,(substitute exp0 varenv)))
+
+      ((&call . fname_exp*)
+       & (memq &call '(call rcall xcall)) =>
+       (with (( (fname . exp*) fname_exp* ))	
+	     `(,&call ,fname . ,(substitute* exp* varenv))))
+
+      ((op . exp*) =>
+       `(,op . ,(substitute* exp* varenv)))
+
+      ))
+
+  (define (substitute-bindings bindings varenv)
+    (map (lambda (binding)
+           (with (( (vname exp)  binding ))
+                 `(,vname ,(substitute exp varenv))))
+         bindings))
+
+  (define (substitute* exp* varenv)
+    (map (lambda (exp) (substitute exp varenv)) exp*))
+
+  ;; Generates "let".
+
+  (define (gen-let bindings exp0)
+    (if (null? bindings)
+        exp0
+        `(let ,bindings ,exp0)))
+
+  ;;
+  ;;   Returns the maximum number of occurrences of "vname"
+  ;; in any branch of "exp".
+  ;;   Local variables, introduced by the constructs "let" in "exp"
+  ;; are supposed to have been renamed, for which reason
+  ;; we don't have to take care of variable clashes...
+  ;;
+
+  (define (max-occurrences vname exp)
+    (select
+      (exp)
+
+      (_
+        & (symbol? exp) =>
+        (if (eq? vname exp) 1 0))
+
+      (('quote _) => 0)
+
+      (('if exp0 exp1 exp2) =>
+       (let ((n0  (max-occurrences vname exp0))
+             (n1  (max-occurrences vname exp1))
+             (n2  (max-occurrences vname exp2)))
+         (max (+ n0 n1) (+ n0 n2))))
+
+      (('let bindings exp0) =>
+       (let ((n1  (max-occurrences* vname (map cadr bindings)))
+             (n0  (max-occurrences vname exp0)))
+         (+ n1 n0)))
+
+      ((&call . fname_exp*)
+       & (memq &call '(call rcall xcall)) =>
+       (with (( (fname . exp*) fname_exp* ))
+	     (max-occurrences* vname exp*)))
+
+      ((op . exp*) =>
+       (max-occurrences* vname exp*))
+
+      ))
+
+  (define (max-occurrences* vname exp*)
+    (foldl-map + 0 (lambda (exp) (max-occurrences vname exp)) exp*))
+
+  ;;
+  ;; Generation of the names of local variables.
+  ;;
+
+  (define let-var-count #f)  ;; Counter.
+
+  ;; Initializes the variable counter.
+
+  (define (init-let-var)
+    (set! let-var-count 0))
+
+  ;; Generates a new variable name.
+
+  (define (gen-let-var)
+    (set! let-var-count (+ let-var-count 1))
+    (string->symbol
+      (string-append
+        "$"
+        (number->string let-var-count))))
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;  (uctmwrl:rem-let-prog prog)  ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  (map rem-let-fundef prog))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                 ;;
+;;       Elimination of all "let" constructs by introducing        ;;
+;;                      auxiliary functions                        ;;
+;;                                                                 ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define (uctmwrl:cut-let-prog prog)
+
+  ;; Eliminates all "let" constructs in the function definition
+  ;; "fundef" by introducing auxiliary functions. Returns
+  ;; the list whose first element is the updated "fundef"
+  ;; and whose other elements are the definitions of the auxiliary
+  ;; functions generated.
+
+  (define (cut-let-fundef fundef)
+
+    (define aux-funcs #f)       ;; The list of auxiliary functions
+                                ;; generated.
+    (define let-func-prefix #f) ;; The prefix of the names of
+                                ;; the auxiliary functions.
+    (define let-func-count #f)  ;; A counter for generating
+                                ;; auxiliary functions.
+
+    ;; Initializes the generator of the auxiliary function's
+    ;; names.
+
+    (define (init-let-funcs prefix)
+      (set! let-func-prefix
+            (string-append (symbol->string prefix) "$/"))
+      (set! let-func-count 0))
+
+    ;; Generates a new function name.
+
+    (define (gen-let-func)
+      (set! let-func-count (+ let-func-count 1))
+      (string->symbol
+        (string-append
+          let-func-prefix
+          (number->string let-func-count))))
+
+    ;; Eliminates all "let" constructs from the expression "exp"
+    ;; and updates "aux-funcs".
+
+    (define (cut-let-exp! exp)
+      (select
+        (exp)
+
+        (vname & (symbol? vname) =>
+               vname)
+
+        (('quote _) => exp)
+
+        (('let bindings exp0) =>
+         (let* ((b-vars    (map car bindings))
+                (b-exps    (map (lambda (binding)
+                                  (cut-let-exp! (cadr binding)))
+                                bindings
+                                ))
+                (exp0      (cut-let-exp! exp0))
+                (free      (reverse (free-vars exp0 '() b-vars)))
+                (fname     (gen-let-func))
+                (aux       `(,fname (,@b-vars ,@free) = ,exp0)))
+           (set! aux-funcs `(,aux . ,aux-funcs))
+           `(call ,fname ,@b-exps ,@free)))
+
+        ((&call . fname_exp*)
+         & (memq &call '(call rcall xcall)) =>
+	 (with (( (fname . exp*) fname_exp* ))
+	       `(,&call ,fname . ,(map cut-let-exp! exp*))))
+
+        ((op . exp*) =>
+         `(,op . ,(map cut-let-exp! exp*)))
+
+        ))
+
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    ;;  (cut-let-fundef fundef)  ;;
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+    (with*
+      (( (fname pars '= exp)  fundef ))
+      (init-let-funcs fname)
+      (set! aux-funcs '())
+      (let ((exp (cut-let-exp! exp)))
+        `((,fname ,pars = ,exp) . ,aux-funcs))))
+
+  ;;
+  ;;   Returns the set of the variables "free" with
+  ;; the addition of the variables free in "exp".
+  ;; This function is supposed to be applied only
+  ;; to "let-free" expressions.
+  ;;   Variables listed in "bound" are not included
+  ;; in the result.
+  ;;
+
+  (define (free-vars exp free bound)
+    (select
+      (exp)
+
+      (_
+        & (symbol? exp) =>
+        (if (or (memq exp bound)
+                (memq exp free))
+          free
+          (cons exp free)))
+
+      (('quote _) => free)
+
+      ((&call . fname_exp*)
+       & (memq &call '(call rcall xcall)) =>
+       (with (( (fname . exp*) fname_exp* ))
+	     (free-vars* exp* free bound)))
+
+      ((op . exp*) =>
+       (free-vars* exp* free bound))
+
+      ))
+
+  (define (free-vars* exp* free bound)
+    (select
+      (exp*)
+
+      (() => free)
+
+      ((exp . rest) =>
+       (let ((free  (free-vars exp free bound)))
+         (free-vars* rest free bound)))
+
+      ))
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;  (uctmwrl:cut-let-prog prog)  ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  (append-map cut-let-fundef prog))
+

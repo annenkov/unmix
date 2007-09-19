@@ -1,0 +1,13 @@
+;; File: TESYNT.SEX
+
+(extend-syntax
+  (infix)
+
+  ((infix ((x1 . x2) ...) ((y1 . y2) ...)) (infix (x1 . y1) ...))
+  ((infix x) (pair? 'x) x)
+  ((infix s op xs ...)
+   (assoc 'op infixlist)
+     (with (((infix-op . prefix-op) (assoc 'op infixlist)))
+           (prefix-op (infix s) (infix xs ...))))
+  )
+

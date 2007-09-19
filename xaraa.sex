@@ -1,0 +1,314 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                 ;;
+;;  File:     xaraa.sex                                            ;;
+;;  Project:  the specializer Unmix                                ;;
+;;  Author:   S.A.Romanenko, the Institute for Applied             ;;
+;;            Mathematics, the USSR Acedemy of Sciences,           ;;
+;;            Moscow.                                              ;;
+;;  Created:  5 May 1989                                           ;;
+;;  Revised:  7 December 1989                                      ;;
+;;            10 April 1990                                        ;;
+;;            August 1990                                          ;;
+;;                                                                 ;;
+;;  Contents: The Parameter Access Analysis of the Arity Raiser    ;;
+;;                                                                 ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                 ;;
+;;                    Parameter Access Analysis                    ;;
+;;                                                                 ;;
+;;  Global effect: does a backward analysis of the program         ;;
+;;  to produce a new description of types in which some            ;;
+;;  ('cons t1 t2) are replaced with 'any.                          ;;
+;;                                                                 ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;
+;; Takes a program "prog" and a description "types" and
+;; updates the description by replacing some of ('cons t1 t2)
+;; with 'any.
+;;
+
+(define (uaraa:analyze-parameter-access! prog types)
+
+  (define types-modified? #f)
+
+  ;;
+  ;; Collects all attempts at accessing the parameters of
+  ;; the program's functions that result from the program
+  ;; "prog" and the description "types", and updates "types".
+  ;;
+
+  (define (collect-acc-prog!)
+    (for-each
+      (lambda (fundef)
+        (with (( (fname parlist _ body)  fundef )
+               )
+              (collect-acc-exp! body '() fname parlist)))
+      prog))
+
+  ;;
+  ;; Collects accesses to the parameters "vn" of the function "fn"
+  ;; that result from the expression "exp", the description
+  ;; "types" and updates "types". "context" records attempts at
+  ;; accessing "exp" that result from the context of the expression
+  ;; "exp".
+  ;;
+
+  (define (collect-acc-exp! exp context fn vn)
+    (select
+      (exp)
+
+      (_ & (symbol? exp) =>
+         (when (not (null? context))
+               (contract-var! exp context fn vn)))
+
+      (('quote . _) => #f)
+
+      (('car exp1) =>
+       (collect-acc-exp! exp1 `(car . ,context) fn vn))
+
+      (('cdr exp1) =>
+       (collect-acc-exp! exp1 `(cdr . ,context) fn vn))
+
+      (('cons exp1 exp2) =>
+       (collect-acc-exp! exp1 (un-car context) fn vn)
+       (collect-acc-exp! exp2 (un-cdr context) fn vn))
+
+      (('call fname . exp*) =>
+       (with (( (_ . arg-type*)  (assq fname types) )
+              )
+             (collect-acc-arg*! exp* arg-type* fn vn)))
+
+      (('xcall fname . exp*) =>
+       (collect-acc-exp*! exp* fn vn))
+
+      ((op . exp*) =>
+       (collect-acc-exp*! exp* fn vn))
+
+      ))
+
+  ;;
+  ;; Iterates the function "collect-acc-exp!" on "exp*".
+  ;;
+
+  (define (collect-acc-exp*! exp* fn vn)
+    (for-each (lambda (exp) (collect-acc-exp! exp '() fn vn)) exp*))
+
+  ;;
+  ;; Collects accesses to the parameters "vn" of the function "fn"
+  ;; that result from the expressions "exp*", the description
+  ;; "types". "patt*" is a list of types that must be used to get
+  ;; information about accesses to the expressions "exp*".
+  ;;
+
+  (define (collect-acc-arg*! exp* patt* fn vn)
+    (for-each (lambda (exp patt)
+                (collect-acc-exp! exp (patt->context patt) fn vn))
+              exp* patt*))
+
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;                                                                 ;;
+  ;;          Handling Descriptions, Types and Contexts              ;;
+  ;;                                                                 ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  ;;
+  ;; Applies "func" to each type in "types" and updates
+  ;; "types" with the results obtained.
+  ;;
+
+  (define (update-types! func)
+    (for-each
+      (lambda (fdescr)
+        (with (( (fname . type*)  fdescr ))
+              (set-cdr! fdescr (map func type*))))
+      types))
+
+  ;;
+  ;; Replaces all keywords "cons" with "cons?", which
+  ;; means that initially there are no recorded attempts
+  ;; at accessing function parameters.
+  ;;
+
+  (define (mark-conses type)
+    (select
+      (type)
+
+      ('absent =>     'any)
+      ('any    =>     type)
+      (('atom  _) =>  type)
+      (('cons t1 t2) =>
+       `(cons? ,(mark-conses t1) ,(mark-conses t2)))
+
+      ))
+
+  ;;
+  ;; Replaces all unaccessed components with 'any.
+  ;;
+
+  (define (generalize-type type)
+    (select
+      (type)
+
+      ('any          => type)
+      (('atom _)     => type)
+      (('cons t1 t2) =>
+       `(cons ,(generalize-type t1) ,(generalize-type t2)))
+      (('cons? _ _)  => 'any)
+
+      ))
+
+  ;;
+  ;; Converts a pattern to a context.
+  ;;
+
+  (define (patt->context patt)
+    (select
+      (patt)
+
+      ('any => '())
+
+      (('atom _) => '())
+
+      (('cons _ _) => patt)
+
+      (('cons? _ _) => '())
+
+      ))
+
+  ;;
+  ;; Cancels a "car" in a context.
+  ;;
+
+  (define (un-car context)
+    (select
+      (context)
+
+      (() => '())
+
+      (('car . rest) => rest)
+
+      (('cdr . rest) => '())
+
+      (('cons p1 p2) => (patt->context p1))
+
+      ))
+
+  ;;
+  ;; Cancels a "cdr" in a context.
+  ;;
+
+  (define (un-cdr context)
+    (select
+      (context)
+
+      (() => '())
+
+      (('car . rest) => '())
+
+      (('cdr . rest) => rest)
+
+      (('cons p1 p2) => (patt->context p2))
+
+      ))
+
+  ;;
+  ;; Updates the information about the parameter "vname" of
+  ;; the function "fn".
+  ;;
+
+  (define (contract-var! vname context fname vn)
+    (with* (( fdescr  (assq fname types) )
+            ( (_ . type*)  fdescr )
+            )
+           (set-cdr! fdescr (contract-par context vname vn type*))))
+
+  (define (contract-par context par vname* type*)
+    (with* (( (vname . r-vname*)  vname* )
+            ( (type  . r-type*)   type*  )
+            )
+           (if (eq? par vname)
+               `(,(contract-type context type) . ,r-type*)
+               `(,type . ,(contract-par context par r-vname* r-type*)))))
+
+  ;;
+  ;; Updates a type according to a context.
+  ;;
+
+  (define (contract-type context type)
+    (select
+      (context)
+
+      (() => type)
+
+      (('car . rest) =>
+       (select
+         (type)
+
+         ('any => type)
+         (('atom _) => type)
+         (('cons t1 t2) =>
+          `(cons ,(contract-type rest t1) ,t2))
+         (('cons? t1 t2) =>
+          `(cons ,(contract-type rest t1) ,t2))
+         ))
+
+      (('cdr . rest) =>
+       (select
+         (type)
+
+         ('any => type)
+         (('atom . _) => type)
+         (('cons t1 t2) =>
+          `(cons ,t1 ,(contract-type rest t2)))
+         (('cons? t1 t2) =>
+          `(cons ,t1 ,(contract-type rest t2)))
+         ))
+
+      (patt => (match-types patt type))
+
+      ))
+
+  ;;
+  ;; Updates a type according to the attempts at accessing a parameter
+  ;; recorded in another type (pattern).
+  ;;
+
+  (define (match-types patt type)
+    (select
+      (patt)
+
+      ('any => type)
+      (('atom _) => type)
+      (('cons p1 p2) =>
+       (select
+         (type)
+
+         ('any => type)
+         (('atom _) => type)
+         (('cons t1 t2) =>
+          `(cons ,(match-types p1 t1) ,(match-types p2 t2)))
+         (('cons? t1 t2) =>
+          `(cons ,(match-types p1 t1) ,(match-types p2 t2)))
+         ))
+
+      (('cons? _ _) => type)
+
+      ))
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;  (uaraa:analyze-parameter-access! prog types)  ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  (update-types! mark-conses)
+  (let recalc-accesses! ()
+    (display "*")
+    (set! types-modified? #f)
+    (collect-acc-prog!)
+    (if types-modified?
+        (recalc-accesses!)
+        (update-types! generalize-type))))
+

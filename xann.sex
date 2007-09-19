@@ -1,0 +1,331 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                 ;;
+;;  File:     xann.sex                                             ;;
+;;  Project:  the specializer Unmix                                ;;
+;;  Author:   S.A.Romanenko, the Institute for Applied             ;;
+;;            Mathematics, the USSR Acedemy of Sciences,           ;;
+;;            Moscow.                                              ;;
+;;  Credits:  Some parts of the program have been taken            ;;
+;;            from the specializer Mix made by Peter Sestoft       ;;
+;;            and N.C.Kehler Holst (The Mix Group),                ;;
+;;            mix@diku.UUCP, at the University of Copenhagen.      ;;
+;;  Created:  5 May 1989                                           ;;
+;;  Revised:  6 April 1990                                         ;;
+;;            July 1990                                            ;;
+;;                                                                 ;;
+;;  Contents: The phase of the Annotator                           ;;
+;;            that annotates a program.                            ;;
+;;                                                                 ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;
+;;  Data structures and naming conventions:
+;;     See the file xsepsd.s ...
+;;
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                 ;;
+;;                             Annotation                          ;;
+;;                                                                 ;;
+;;    Global effect: given a division of data into static and      ;;
+;;  dynamic parts, the program is annotated.                       ;;
+;;    The program is divided into s-program and d-program.         ;;
+;;    The static functions, which have only static parameters and  ;;
+;;  will produce static results, are put into s-program without    ;;
+;;  being modified.                                                ;;
+;;    The dynamic functions, which have one or more dynamic        ;;
+;;  parameters and will produce dynamic rusults are put into       ;;
+;;  d-program.                                                     ;;
+;;    The dynamic functions are annotated as follows.              ;;
+;;    The parameter lists are split into lists of static           ;;
+;;  parameters and lists of dynamic parameters.                    ;;
+;;    The argument lists are split into lists of static            ;;
+;;  arguments and lists of dynamic arguments.                      ;;
+;;    All static subexpressions appearing in dynamic expressions   ;;
+;;  are marked with the construct "(static ... )" without being    ;;
+;;  modified.                                                      ;;
+;;    If the call annotation is made in automatic mode, all        ;;
+;;  function calls are automatically annotated as either           ;;
+;;  unfoldable ("call") or not unfoldable ("rcall"). Otherwise     ;;
+;;  the hand-made call annotations are retained.                   ;;
+;;    Then the names of all functions that are called as residual  ;;
+;;  (with "rcall") in one or more places in the d-program are      ;;
+;;  put in the list of "residual function names".                  ;;
+;;                                                                 ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+;;
+;; Returns "mw-prog" annotated according the description "mc".
+;; The function "collect-residual-functions" has been defined
+;; in another file.
+;;
+
+(define (uann:make-annotated-program mw-prog mc)
+
+  ;;
+  ;; Separates the dynamic functions from the static ones.
+  ;; Annotates the definitions of the dynamic functions.
+  ;;
+
+  (define (annotate-fndef* fndef* mc)
+    (select
+      (fndef*)
+
+      (() => '(() . ()))
+
+      ((fndef . rest) =>
+       (with (
+              ( (ann-fndef . ind)  (annotate-fndef fndef mc))
+              ( (d-rest . s-rest)  (annotate-fndef* rest mc))
+              )
+             (if (eq? ind 's)
+                 `(,d-rest . (,ann-fndef . ,s-rest))
+                 `((,ann-fndef . ,d-rest) . ,s-rest)
+                 )))))
+
+  ;;
+  ;; Returns the annotated definition of a dynamic function.
+  ;;
+
+  (define (annotate-fndef fndef mc)
+    (with*
+      (( (fn fpars _ fbody)  fndef )
+       ( (fargs . fres)  (lookup-function-description fn mc) ))
+      (if (eq? fres 's)
+          `(,fndef . s)
+          (with*
+            (( (s-fpars . d-fpars)  (sep-sd fpars fargs) )
+             ( (ann-fbody . ind)  (annotate-exp fbody fpars fargs mc) ))
+            `((,fn ,s-fpars ,d-fpars =
+                   ,(protect-static-exp ann-fbody ind))
+              . d)
+            ))))
+
+  ;;
+  ;; Returns a pair (res . ind) where "res" is the result of
+  ;; annotating "exp", and "ind" is an indicator with a value
+  ;; s (static) iff "exp" does not depend on dynamic parameters.
+  ;; (in this case "res" equals "exp"). Otherwise the value of "ind"
+  ;; is d (dynamic).
+  ;;
+
+  (define (annotate-exp exp vn vv mc)
+    (select
+      (exp)
+
+      (_
+        & (symbol? exp) =>
+        `(,exp . ,(lookup-variable exp vn vv))
+        )
+
+      (('quote s-exp) =>
+       `(,exp . s))
+
+      (('generalize exp1) =>
+       (with
+         (( (ann-exp1 . ind1)  (annotate-exp exp1 vn vv mc) )
+          )
+         `(,(protect-static-exp ann-exp1 ind1) . d)
+         ))
+
+      (('if exp1 exp2 exp3) =>
+       (with* (((aexp1 . ind1)  (annotate-exp exp1 vn vv mc))
+               ((aexp2 . ind2)  (annotate-exp exp2 vn vv mc))
+               ((aexp3 . ind3)  (annotate-exp exp3 vn vv mc))
+               (ind             (lub ind1 (lub ind2 ind3)))
+               )
+              (if (eq? ind 's)
+                  `(,exp . s)
+                  (let (
+                        (aif    (if (eq? ind1 's) 'ifs 'ifd))
+                        (aexp2  (protect-static-exp aexp2 ind2))
+                        (aexp3  (protect-static-exp aexp3 ind3))
+                        )
+                    `((,aif ,aexp1 ,aexp2 ,aexp3) . d)
+                    ))))
+
+      ((call? . _)
+       & (memq call? '(call rcall)) =>
+       (with*
+	(( (_ fn . exp*) exp ) 
+	 ( (fargs . fres)  (lookup-function-description fn mc) ))
+	(if (eq? fres 's)
+	    `(,exp . s)
+	    (with*
+	     (( (s-exp* . d-exp*)   (sep-sd exp* fargs) )
+	      ( (ann-d-exp* . ind*) (annotate-exp* d-exp* vn vv mc) )
+	      )
+	     `((,call? ,fn
+		       ,s-exp*
+		       ,(protect-static-exp* ann-d-exp* ind*))
+	       . d)))))
+
+      (('xcall fname . exp*) =>
+       (with*
+         (( (ann-exp* . ind*)  (annotate-exp* exp* vn vv mc) )
+          ( ind                (lub-list ind*))
+          )
+         (if (eq? ind 's)
+             `(,exp . s)
+             `((xcall ,fname . ,(protect-static-exp* ann-exp* ind*)) . d)
+             )))
+
+      ((op . exp*) =>
+       (with*
+         (( (ann-exp* . ind*)  (annotate-exp* exp* vn vv mc) )
+          ( ind                (lub-list ind*) )
+          )
+         (if (eq? ind 's)
+             `(,exp . s)
+             `((,op . ,(protect-static-exp* ann-exp* ind*)) . d)
+             )))
+
+      (_ =>
+         (error "Malformed expression: " exp))
+
+      ))
+
+  ;;
+  ;; Returns a pair (res* . ind*) where each "res" is the result of
+  ;; annotating corresponding "exp", and each "ind" is an indicators
+  ;; with a value s (static) iff the corresponding "exp" does not
+  ;; depend on dynamic parameters (in this case "res" equals "exp").
+  ;; Otherwise the value of "ind" is d (dynamic).
+  ;;
+
+  (define (annotate-exp* exp* vn vv mc)
+    (let ((res-ind*
+            (map
+              (lambda (exp) (annotate-exp exp vn vv mc))
+              exp*)))
+      `(,(map car res-ind*) . ,(map cdr res-ind*))
+      ))
+
+  ;;
+  ;; If "ind" tells that "exp" is a static expression,
+  ;; encloses "exp" in "(static" ...")".
+  ;;
+
+  (define (protect-static-exp exp ind)
+    (if (eq? ind 'd)
+        exp
+        (match
+          (exp)
+
+          (('error . exp*) =>
+           `(error . ,(map (lambda (e) (protect-static-exp e 's))
+                           exp*)))
+
+          (_ => `(static ,exp))
+
+          )))
+
+  (define (protect-static-exp* exp* ind*)
+    (select
+      (exp* ind*)
+
+      (() () => '())
+
+      ((exp . rest-exp*) (ind . rest-ind*) =>
+       (cons (protect-static-exp exp ind)
+             (protect-static-exp* rest-exp* rest-ind*))
+
+       )))
+
+  ;;
+  ;; Returns a pair (s-lst . d-lst) where "s-lst" is the list
+  ;; that includes all staitc elements of "lst", whereas "d-lst"
+  ;; includes all dynamic elements of "lst" .
+  ;;
+
+  (define (sep-sd lst ind*)
+    (select
+      (lst ind*)
+
+      (() () => '(() . ()))
+
+      ((first . r-lst) (ind . r-ind*) =>
+       (with (( (s-lst . d-lst)  (sep-sd r-lst r-ind*) )
+              )
+             (case ind
+               ((s)
+                `((,first . ,s-lst) . ,d-lst))
+               ((d)
+                `(,s-lst . (,first . ,d-lst)))
+               )))))
+
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;                                                                 ;;
+  ;;                 Least Upper Bound Computation                   ;;
+  ;;                                                                 ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+  ;;
+  ;; Returns lub of two indicators.
+  ;;
+
+  (define (lub ind1 ind2)
+    (if (eq? ind1 'd) 'd ind2))
+
+  ;;
+  ;; Returns the lub of a list of indicators.
+  ;;
+
+  (define (lub-list ind*)
+    (if (memq 'd ind*) 'd 's))
+
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;                                                                 ;;
+  ;;                     Description Handling                        ;;
+  ;;                                                                 ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  ;;
+  ;; Returns a pair (fargs . fres) where "fargs" is the parameter
+  ;; description of the function "fname", and "fres" is the result
+  ;; description of the function "fname".
+  ;;
+
+  (define (lookup-function-description fname mc)
+    (cdr (assq fname mc)))
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;                                                                 ;;
+  ;;                    Environment Handling                         ;;
+  ;;                                                                 ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  ;;
+  ;; Returns the value of the variable "vname" in the environment
+  ;; (vn*,vv*).
+  ;;
+
+  (define (lookup-variable vname vn* vv*)
+    (select
+      (vn* vv*)
+
+      (() () =>
+       (error "Undefined variable: " vname))
+
+      ((vn . nrest) (vv . vrest) =>
+       (if (eq? vname vn)
+           vv
+           (lookup-variable vname nrest vrest)))
+
+      ))
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;  (uann:make-annotated-program mw-prog mc)  ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  (with* (( (d-fndef* . s-fndef*)  (annotate-fndef* mw-prog mc) )
+          ( rf-names  (uresfn:collect-residual-functions d-fndef*) )
+          )
+         `(,rf-names ,d-fndef* ,s-fndef*)
+         ))
+

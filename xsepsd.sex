@@ -1,0 +1,149 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                 ;;
+;;  File:     xsepsd.s                                             ;;
+;;  Project:  the specializer Unmix                                ;;
+;;  Author:   S.A.Romanenko, the Institute for Applied             ;;
+;;            Mathematics, the USSR Acedemy of Sciences,           ;;
+;;            Moscow.                                              ;;
+;;  Credits:  Some parts of the program have been taken            ;;
+;;            from the specializer Mix made by Peter Sestoft       ;;
+;;            and N.C.Kehler Holst (The Mix Group),                ;;
+;;            mix@diku.UUCP, at the University of Copenhagen.      ;;
+;;  Created:  5 May 1989                                           ;;
+;;  Revised:  6 April 1990                                         ;;
+;;            July 1990                                            ;;
+;;            December, 1992                                       ;;
+;;                                                                 ;;
+;;  Contents: The phase of the Annotator                           ;;
+;;            that separates static parts of a program             ;;
+;;            from dynamic ones.                                   ;;
+;;                                                                 ;;
+;;  Synopsis:                                                      ;;
+;;            (unmix-static-and-dynamic mw-prog descr)             ;;
+;;                                                                 ;;
+;;            mw-prog   - a Mixwell program                        ;;
+;;            descr     - a list of atoms "s" and "d"              ;;
+;;                                                                 ;;
+;;  Description:                                                   ;;
+;;            The program finds a congruent division of data       ;;
+;;            into static and dinamic parts and annotates          ;;
+;;            the Mixwell program "mw-prog".                       ;;
+;;                                                                 ;;
+;;            The sequence of indicators in "descr" tells          ;;
+;;            for the variable in the corresponding place          ;;
+;;            in the parameter list of the goal function           ;;
+;;            whether its value is supposed to be static           ;;
+;;            ("known") or dynamic ("unknown") at partial          ;;
+;;            evaluation time.                                     ;;
+;;                                                                 ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+;;  Data structures used during binding time analysis:
+;;  =================================================
+;;
+;;  Description:
+;;
+;;    <Description>       ::= ( <MetaConfiguration>* )
+;;    <MetaConfiguration> ::= ( <Fname> <ParDescr> . <ResDescr> )
+;;    <ParDescr>          ::= ( <Indicator>* )
+;;    <ResDescr>          ::= <Indicator>
+;;    <Indicator>         ::= s | d
+;;
+;;      A description is a list of meta-configurations, where each
+;;    meta-configuration consists of the name of the function,
+;;    the parameter's desctiption, and the result's description.
+;;      An indicator in the parameter's description tells whether
+;;    the parameter in the corresponding place in the function's
+;;    formal parameter list will be static (s) or dynamic (d).
+;;      An indicator in the result's description tells whether
+;;    the result of partially evaluating a call of the function
+;;    will be static (s) of dynamic (s).
+;;      Thus a meta-configuration represents a class of computational
+;;    configurations that may be produced by the partial evaluator
+;;    when the program will be used to generate a residual program.
+
+
+;;  Naming conventions:
+;;  ==================
+;;
+;;    mw-prog     - the Mixwell program to analyze.
+;;    mc          - a set of meta-configurations that describe
+;;                  all the functions of the program.
+;;    vn*         - the names of the variables known by a function
+;;                  under abstract interpretation.
+;;    vv*         - the abstract values (indicators) bound to the
+;;                  variables found in "vn*".
+
+
+;;  A note on the algorithm used:
+;;  ============================
+;;
+;;  The program contains two phases:
+;;
+;;   1) Finding a congruent division of data into static and
+;;      dynamic parts. This analysis is done by an abstract
+;;      interpretation of the Mixwell program computing a set
+;;      of safe, consistent variable descriptions in the form
+;;      of a Description (as described above).
+;;
+;;   2) Annotation - the translation of the Mixwell program into
+;;      an annotated Mixwell program.
+;;
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                 ;;
+;;                           Main Function                         ;;
+;;                                                                 ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+(define (usepsd:unmix-static-and-dynamic mw-prog descr)
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;                                                                 ;;
+  ;;       Checking the Division of the Program's Input Parameters   ;;
+  ;;                                                                 ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  ;;
+  ;; Checks that the division of the goal function's parameters
+  ;; given at the beginning equals to that obtained by the
+  ;; binding time analysis. The contradiction can result from
+  ;; the goal function being called in the program. Thus it is
+  ;; advisable that the goal function not be called in the program
+  ;; to be specialized...
+  ;;
+
+  (define (check-input-division descr mc)
+    (with (( ((fname fargs . fres) . _)  mc ))
+          (when (not (equal? descr fargs))
+                (display "The division of the program's input parameters")
+                (newline)
+                (display "obtained by the abstract interpretation is")
+                (newline)
+                (write fargs) (newline)
+                (display "which contradicts to the division") (newline)
+                (write descr) (newline)
+                (display "prescribed by the user.") (newline)
+                (error "")
+                )))
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;  (usepsd:unmix-static-and-dynamic mw-prog descr)  ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  (display "Finding Congruent Division") (newline)
+  (ux:load "xfcd")
+  (display "Iterations: ")
+  (let ((mc (ufcd:find-congruent-division mw-prog descr)))
+    (set! ufcd:find-congruent-division  #f)
+    (newline)
+    (display "Unmixing Static and Dynamic Data") (newline)
+    (check-input-division descr mc)
+    (ux:load "xann")
+    (let ((ann-prog (uann:make-annotated-program mw-prog mc)))
+      (set! uann:make-annotated-program  #f)
+      (display "-- Done --") (newline)
+      ann-prog)))
+

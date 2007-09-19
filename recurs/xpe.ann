@@ -1,0 +1,357 @@
+($specialize-fundef $gen-res-fundef! $gen-res-fundef-p! $pe-exp $eval-exp)
+(
+($specialize-fundef
+  (ann-prog)
+  (sv)
+  =
+  (call $specialize-fundef$/4
+        ((car (cdr ann-prog)) (car (car ann-prog)) ann-prog)
+        (sv)))
+
+($specialize-fundef$/4
+  ($5 $6 ann-prog)
+  (sv)
+  =
+  (call $specialize-fundef$/3 ((assq $6 $5) $6 ann-prog $5) (sv)))
+
+($specialize-fundef$/3
+  ($4 $6 ann-prog $5)
+  (sv)
+  =
+  (call $specialize-fundef$/2
+        ((car (cdr (cdr $4))) (car (cdr $4)) $6 $4 ann-prog $5)
+        (sv)))
+
+($specialize-fundef$/2
+  ($2 $3 $6 $4 ann-prog $5)
+  (sv)
+  =
+  (call $specialize-fundef$/1
+        ($2 $4 $3 ann-prog $5)
+        ((cdr (umainpe:find-name! (static $6) sv)) sv)))
+
+($specialize-fundef$/1
+  ($2 $4 $3 ann-prog $5)
+  ($1 sv)
+  =
+  (cons (umainpe:print-fundef!
+          (static '$start)
+          (static $2)
+          (cons (static 'call) (cons $1 (static $2))))
+        (cons (umainpe:print-fundef!
+                $1
+                (static $2)
+                (rcall $pe-exp
+                       ((car (cdr (cdr (cdr (cdr $4)))))
+                        $3
+                        $2
+                        (car (cdr (cdr ann-prog)))
+                        $5)
+                       ((call $contract-sv ($3) (sv)) (static $2))))
+              (static '()))))
+
+($gen-res-fundef!
+  (fname s-prog d-prog)
+  (sv)
+  =
+  (call $gen-res-fundef!$/2 ((assq fname d-prog) fname s-prog d-prog) (sv)))
+
+($gen-res-fundef!$/2
+  ($2 fname s-prog d-prog)
+  (sv)
+  =
+  (call $gen-res-fundef!$/1 ((car (cdr $2)) fname $2 s-prog d-prog) (sv)))
+
+($gen-res-fundef!$/1
+  ($1 fname $2 s-prog d-prog)
+  (sv)
+  =
+  (rcall $gen-res-fundef-p!
+         ((car (cdr (cdr (cdr (cdr $2)))))
+          $1
+          (car (cdr (cdr $2)))
+          s-prog
+          d-prog)
+         ((umainpe:find-name! (static fname) (call $contract-sv ($1) (sv)))
+          sv)))
+
+($gen-res-fundef-p!
+  (body sn dn s-prog d-prog)
+  (fn sv)
+  =
+  (ifd (car fn)
+       (umainpe:print-fundef!
+         (cdr fn)
+         (static dn)
+         (rcall $pe-exp (body sn dn s-prog d-prog) (sv (static dn))))
+       (cdr fn)))
+
+($contract-sv
+  (sn)
+  (sv)
+  =
+  (ifs (null? sn)
+       (static '())
+       (cons (car sv) (call $contract-sv ((cdr sn)) ((cdr sv))))))
+
+($pe-exp (exp sn dn s-prog d-prog)
+         (sv dv)
+         =
+         (ifs (not (pair? exp))
+              (call $lookup-value (exp dn) (dv))
+              (ifs (equal? (car exp) 'static)
+                   (cons (static 'quote)
+                         (cons (call $eval-exp
+                                     ((car (cdr exp)) sn s-prog)
+                                     (sv))
+                               (static '())))
+                   (ifs (equal? (car exp) 'ifs)
+                        (ifd (call $eval-exp ((car (cdr exp)) sn s-prog) (sv))
+                             (call $pe-exp
+                                   ((car (cdr (cdr exp))) sn dn s-prog d-prog)
+                                   (sv dv))
+                             (call $pe-exp
+                                   ((car (cdr (cdr (cdr exp))))
+                                    sn
+                                    dn
+                                    s-prog
+                                    d-prog)
+                                   (sv dv)))
+                        (ifs (equal? (car exp) 'ifd)
+                             (cons (static 'if)
+                                   (cons (call $pe-exp
+                                               ((car (cdr exp))
+                                                sn
+                                                dn
+                                                s-prog
+                                                d-prog)
+                                               (sv dv))
+                                         (cons (call $pe-exp
+                                                     ((car (cdr (cdr exp)))
+                                                      sn
+                                                      dn
+                                                      s-prog
+                                                      d-prog)
+                                                     (sv dv))
+                                               (cons (call $pe-exp
+                                                           ((car (cdr (cdr (cdr exp))))
+                                                            sn
+                                                            dn
+                                                            s-prog
+                                                            d-prog)
+                                                           (sv dv))
+                                                     (static '())))))
+                             (ifs (equal? (car exp) 'call)
+                                  (call $pe-call
+                                        ((assq (car (cdr exp)) d-prog)
+                                         s-prog
+                                         d-prog)
+                                        ((call $eval-exp*
+                                               ((car (cdr (cdr exp)))
+                                                sn
+                                                s-prog)
+                                               (sv))
+                                         (call $pe-exp*
+                                               ((car (cdr (cdr (cdr exp))))
+                                                sn
+                                                dn
+                                                s-prog
+                                                d-prog)
+                                               (sv dv))))
+                                  (ifs (equal? (car exp) 'rcall)
+                                       (cons (static 'call)
+                                             (cons (rcall $gen-res-fundef!
+                                                          ((car (cdr exp))
+                                                           s-prog
+                                                           d-prog)
+                                                          ((call $eval-exp*
+                                                                 ((car (cdr (cdr exp)))
+                                                                  sn
+                                                                  s-prog)
+                                                                 (sv))))
+                                                   (call $pe-exp*
+                                                         ((car (cdr (cdr (cdr exp))))
+                                                          sn
+                                                          dn
+                                                          s-prog
+                                                          d-prog)
+                                                         (sv dv))))
+                                       (ifs (equal? (car exp) 'xcall)
+                                            (cons (static 'xcall)
+                                                  (cons (static (car (cdr exp)))
+                                                        (call $pe-exp*
+                                                              ((cdr (cdr exp))
+                                                               sn
+                                                               dn
+                                                               s-prog
+                                                               d-prog)
+                                                              (sv dv))))
+                                            (cons (static (car exp))
+                                                  (call $pe-exp*
+                                                        ((cdr exp)
+                                                         sn
+                                                         dn
+                                                         s-prog
+                                                         d-prog)
+                                                        (sv dv)))))))))))
+
+($pe-exp*
+  (exp* sn dn s-prog d-prog)
+  (sv dv)
+  =
+  (ifs (null? exp*)
+       (static '())
+       (cons (call $pe-exp ((car exp*) sn dn s-prog d-prog) (sv dv))
+             (call $pe-exp* ((cdr exp*) sn dn s-prog d-prog) (sv dv)))))
+
+($pe-call
+  (fundef s-prog d-prog)
+  (sv dv)
+  =
+  (rcall $pe-exp
+         ((car (cdr (cdr (cdr (cdr fundef)))))
+          (car (cdr fundef))
+          (car (cdr (cdr fundef)))
+          s-prog
+          d-prog)
+         (sv dv)))
+
+($eval-exp
+  (exp sn prog)
+  (sv)
+  =
+  (ifs (not (pair? exp))
+       (call $lookup-value (exp sn) (sv))
+       (ifs (equal? (car exp) 'quote)
+            (static (car (cdr exp)))
+            (ifs (equal? (car exp) 'if)
+                 (ifd (call $eval-exp ((car (cdr exp)) sn prog) (sv))
+                      (call $eval-exp ((car (cdr (cdr exp))) sn prog) (sv))
+                      (call $eval-exp
+                            ((car (cdr (cdr (cdr exp)))) sn prog)
+                            (sv)))
+                 (ifs (equal? (car exp) 'call)
+                      (call $eval-call
+                            (prog (assq (car (cdr exp)) prog))
+                            ((call $eval-exp* ((cdr (cdr exp)) sn prog) (sv))))
+                      (ifs (equal? (car exp) 'xcall)
+                           (xapply (static (car (cdr exp)))
+                                   (call $eval-exp*
+                                         ((cdr (cdr exp)) sn prog)
+                                         (sv)))
+                           (ifs (equal? (car exp) 'error)
+                                (error (static '"Error function encountered during partial evaluation")
+                                       (cons (static 'error)
+                                             (call $eval-exp*
+                                                   ((cdr exp) sn prog)
+                                                   (sv))))
+                                (ifs (equal? (car exp) 'car)
+                                     (car (call $eval-exp
+                                                ((car (cdr exp)) sn prog)
+                                                (sv)))
+                                     (ifs (equal? (car exp) 'cdr)
+                                          (cdr (call $eval-exp
+                                                     ((car (cdr exp)) sn prog)
+                                                     (sv)))
+                                          (ifs (equal? (car exp) 'cons)
+                                               (cons (call $eval-exp
+                                                           ((car (cdr exp))
+                                                            sn
+                                                            prog)
+                                                           (sv))
+                                                     (call $eval-exp
+                                                           ((car (cdr (cdr exp)))
+                                                            sn
+                                                            prog)
+                                                           (sv)))
+                                               (ifs (equal? (car exp) 'null?)
+                                                    (null? (call $eval-exp
+                                                                 ((car (cdr exp))
+                                                                  sn
+                                                                  prog)
+                                                                 (sv)))
+                                                    (ifs (equal? (car exp)
+                                                                 'pair?)
+                                                         (pair? (call $eval-exp
+                                                                      ((car (cdr exp))
+                                                                       sn
+                                                                       prog)
+                                                                      (sv)))
+                                                         (ifs (equal? (car exp)
+                                                                      'equal?)
+                                                              (equal? (call $eval-exp
+                                                                            ((car (cdr exp))
+                                                                             sn
+                                                                             prog)
+                                                                            (sv))
+                                                                      (call $eval-exp
+                                                                            ((car (cdr (cdr exp)))
+                                                                             sn
+                                                                             prog)
+                                                                            (sv)))
+                                                              (ifs (equal? (car exp)
+                                                                           'eq?)
+                                                                   (eq? (call $eval-exp
+                                                                              ((car (cdr exp))
+                                                                               sn
+                                                                               prog)
+                                                                              (sv))
+                                                                        (call $eval-exp
+                                                                              ((car (cdr (cdr exp)))
+                                                                               sn
+                                                                               prog)
+                                                                              (sv)))
+                                                                   (ifs (equal? (car exp)
+                                                                                'eqv?)
+                                                                        (eqv? (call $eval-exp
+                                                                                    ((car (cdr exp))
+                                                                                     sn
+                                                                                     prog)
+                                                                                    (sv))
+                                                                              (call $eval-exp
+                                                                                    ((car (cdr (cdr exp)))
+                                                                                     sn
+                                                                                     prog)
+                                                                                    (sv)))
+                                                                        (ifs (equal? (car exp)
+                                                                                     'not)
+                                                                             (not (call $eval-exp
+                                                                                        ((car (cdr exp))
+                                                                                         sn
+                                                                                         prog)
+                                                                                        (sv)))
+                                                                             (xapply (static (car exp))
+                                                                                     (call $eval-exp*
+                                                                                           ((cdr exp)
+                                                                                            sn
+                                                                                            prog)
+                                                                                           (sv)))))))))))))))))))
+
+($eval-exp*
+  (exp* sn prog)
+  (sv)
+  =
+  (ifs (null? exp*)
+       (static '())
+       (cons (call $eval-exp ((car exp*) sn prog) (sv))
+             (call $eval-exp* ((cdr exp*) sn prog) (sv)))))
+
+($eval-call
+  (prog fundef)
+  (sv)
+  =
+  (rcall $eval-exp
+         ((car (cdr (cdr (cdr fundef)))) (car (cdr fundef)) prog)
+         (sv)))
+
+($lookup-value
+  (vname vn)
+  (vv)
+  =
+  (ifs (eq? (car vn) vname)
+       (car vv)
+       (call $lookup-value (vname (cdr vn)) ((cdr vv)))))
+
+)(
+
+)

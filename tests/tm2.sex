@@ -1,0 +1,22 @@
+;; File: TM2.SEX
+
+(ux:macro add3
+  (lambda (form)
+    `(+ ,(cadr form) 3)))
+
+(add3 (* x y))
+
+(let () xxx)
+
+(let loop ((x 1) (y 2)) (+ x y))
+
+(cond (x u) (y v) (else w))
+
+(do ((x 1 10) (y 2)) (xxx zzz) body)
+
+(case xxx ((1) x) ((2 2) y) (else z))
+
+`(a ,(add3 xxx) ,@(add3 yyy) `(a ,(add3 xxx) ,,@(add3 yyy)))
+
+`#(a ,(add3 xxx) ,@(add3 yyy) `#(a ,(add3 xxx) ,,@(add3 yyy)))
+

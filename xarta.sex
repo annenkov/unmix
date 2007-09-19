@@ -1,0 +1,314 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                 ;;
+;;  File:     xarta.s                                              ;;
+;;  Project:  the specializer Unmix                                ;;
+;;  Author:   S.A.Romanenko, the Institute for Applied             ;;
+;;            Mathematics, the USSR Acedemy of Sciences,           ;;
+;;            Moscow.                                              ;;
+;;  Created:  5 May 1989                                           ;;
+;;  Revised:  7 December 1989                                      ;;
+;;            10 April 1990                                        ;;
+;;            August 1990                                          ;;
+;;                                                                 ;;
+;;  Contents: The Argument Type Analysis of the Arity Raiser       ;;
+;;                                                                 ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                 ;;
+;;                      Argument Type Analysis                     ;;
+;;                                                                 ;;
+;;  Global effect: evaluate a program over an abstract domain      ;;
+;;  of types to produce a description of the program.              ;;
+;;                                                                 ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;
+;; Returns a description of all functions in "prog".
+;;
+
+(define (uarta:analyze-argument-types prog)
+
+  (define types #f) ;; A description of the function's
+                    ;; argument types.
+
+  (define types-modified? #f)
+
+  ;;
+  ;; Returns an initial descriptions with all types
+  ;; set to 'absent except the argument types of
+  ;; the goal function, which are set to 'any.
+  ;;
+
+  (define (initial-types)
+    `(,(initial-types-func 'any (car prog))
+       . ,(map (lambda (fundef)
+                 (initial-types-func 'absent fundef))
+               (cdr prog))))
+
+  (define (initial-types-func pars-type fundef)
+    (with (( (fname parlist _ _)  fundef ))
+          `(,fname . ,(map (lambda(par) pars-type) parlist))
+          ))
+
+  ;;
+  ;; Collects all argument's types that result from
+  ;; the program "prog" and the description "types", and
+  ;; updates "types".
+  ;;
+
+  (define (collect-args-prog!)
+    (for-each
+      (lambda (fundef)
+        (with* (( (fname parlist _ body)  fundef )
+                ( (_ . fargs)  (assq fname types) )
+                )
+                (collect-args! body parlist fargs)))
+      prog
+      ))
+
+  ;;
+  ;; Collects all argument types that result from
+  ;; the expression "exp" and the description "types" in the
+  ;; abstract environment (vn,vv) and updates "types".
+  ;;
+
+  (define (collect-args! exp vn vv)
+    (select
+      (exp)
+
+      (_ & (symbol? exp) => #f)
+
+      (('quote _) => #f)
+
+      (('call fname . exp*) =>
+       (collect-args*! exp* vn vv)
+       (update-args! fname
+                     (t-eval* exp* vn vv)))
+
+      (('xcall fname . exp*) =>
+        (collect-args*! exp* vn vv))
+
+      ((op . exp*) =>
+       (collect-args*! exp* vn vv))
+
+      (_ =>
+        (error "Malformed expression" exp))
+
+      ))
+
+  ;;
+  ;; Iterates the function "collect-args" on "exp*".
+  ;;
+
+  (define (collect-args*! exp* vn vv)
+    (for-each (lambda (exp) (collect-args! exp vn vv)) exp*))
+
+  ;;
+  ;;  Abstract evaluation of an expression.
+  ;;  Returns a type, computed as the result of doing
+  ;;  abstract interpretation of "exp" in the environment where
+  ;;  the names of "vn" are bound to the corresponding values
+  ;;  of "vv". "types" is used to get abstract values of the function
+  ;;  calls appearing in "exp".
+  ;;
+
+  (define (t-eval exp vn vv)
+    (select
+      (exp)
+
+      (_ & (symbol? exp) =>
+        (lookup-variable exp vn vv))
+
+      (('quote c) => (t-eval-const c))
+
+      (('car exp1) =>
+        (t-eval-car (t-eval exp1 vn vv)))
+
+      (('cdr exp1) =>
+        (t-eval-cdr (t-eval exp1 vn vv)))
+
+      (('pair? exp1) =>
+        (t-eval-pair? (t-eval exp1 vn vv)))
+
+      (('cons exp1 exp2) =>
+        (t-eval-cons
+          (t-eval exp1 vn vv)
+          (t-eval exp2 vn vv)))
+
+      ((_ . _) => 'any)
+
+      ))
+
+  ;;
+  ;; Iterates the function "t-eval" on "exp*".
+  ;;
+
+  (define (t-eval* exp* vn vv)
+    (map (lambda (exp) (t-eval exp vn vv)) exp*))
+
+  ;;
+  ;; Returns the type of a constant expression.
+  ;;
+
+  (define (t-eval-const c)
+    (select
+      (c)
+
+      (_ & (not (pair? c)) => `(atom ,c))
+
+      ((c1 . c2) =>
+       `(cons ,(t-eval-const c1) ,(t-eval-const c2)))
+
+       ))
+
+  ;;
+  ;; Applies "car" to a type.
+  ;;
+
+  (define (t-eval-car t0)
+    (select
+      (t0)
+
+      ('absent       => 'absent)
+      ('any          => 'any)
+      (('atom _)     => 'absent)
+      (('cons t1 t2) => t1)
+
+      ))
+
+  ;;
+  ;; Applies "cdr" to a type.
+  ;;
+
+  (define (t-eval-cdr t0)
+    (select
+      (t0)
+
+      ('absent       => 'absent)
+      ('any          => 'any)
+      (('atom _)     => 'absent)
+      (('cons t1 t2) => t2)
+
+      ))
+
+  ;;
+  ;; Applies "cons" to two types.
+  ;;
+
+  (define (t-eval-cons t1 t2)
+    (select
+      (t1 t2)
+
+      ('absent _ => 'absent)
+
+      (_ 'absent => 'absent)
+
+      (_ _ => `(cons ,t1 ,t2))
+
+         ))
+
+  ;;
+  ;; Applies "pair?" to a type.
+  ;;
+
+  (define (t-eval-pair? t0)
+    (select
+      (t0)
+
+      ('absent       => 'absent)
+      ('any          => 'any)
+      (('atom _)     => '(atom #f))
+      (('cons t1 t2) => '(atom #t))
+
+      ))
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;                                                                 ;;
+  ;;                 Least Upper Bound Computation                   ;;
+  ;;                                                                 ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+  ;;
+  ;; Returns lub of two types.
+  ;;
+
+  (define (lub t1 t2)
+    (select
+      (t1 t2)
+
+      (_ _ & (equal? t1 t2) => t1)
+
+      ('absent _ => t2)
+
+      (_ 'absent => t1)
+
+      ('any _ => 'any)
+
+      (_ 'any => 'any)
+
+      (('atom a) _ => 'any)
+
+      (_ ('atom b) => 'any)
+
+      (('cons u1 u2) ('cons v1 v2) =>
+       `(cons ,(lub u1 v1) ,(lub u2 v2)))
+
+       ))
+
+  ;;
+  ;; Returns the component-wise lub of two lists of
+  ;; types.
+  ;;
+
+  (define (lub* t1* t2*)
+    (map lub t1* t2*))
+
+  ;;
+  ;; Returns "types" with the description of the function "fname"
+  ;; updated. The new parameter description is obtained by computing
+  ;; the least upper bound of the old parameter description and
+  ;; "fargs".
+  ;;
+
+  (define (update-args! fname args)
+    (with* (( fdescr  (assq fname types) )
+            ( (_ . args1)  fdescr )
+            ( lub-args  (lub* args args1) )
+            )
+           (when (not (equal? lub-args args1))
+                 (set-cdr! fdescr lub-args)
+                 (set! types-modified? #t))))
+
+  ;;
+  ;; Returns the type bound to "vname" in the environment
+  ;; (vn,vv).
+  ;;
+
+  (define (lookup-variable vname vn vv)
+    (select
+      (vn vv)
+
+      (() () => (error "Undefined variable" vname))
+
+      ((vn . nrest) (vv . vrest) =>
+       (if (eq? vname vn)
+           vv
+           (lookup-variable vname nrest vrest)))
+
+      ))
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;  (uarta:analyze-argument-types prog)  ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  (set! types (initial-types))
+  (let recalc-types! ()
+    (display "*")
+    (set! types-modified? #f)
+    (collect-args-prog!)
+    (if types-modified?
+        (recalc-types!)
+        types)))
+

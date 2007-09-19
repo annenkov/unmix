@@ -1,0 +1,77 @@
+;; File: match.sex
+
+;; This is an example program to test syntax macro extensions
+;; defined in the file "x-match.sex".
+
+(define (func-cons x y z) `(,x ,y . ,z))
+
+(define (func-and x y z) (and x y z))
+
+(define (func-or x y z) (or x y z))
+
+(define (func-cond p q a b c) (cond (p a) (q b) (else c)))
+
+(define (func-case x)
+  (case x
+    ((AAA) 'AAA)
+    ((A B C) 'ABC)
+    (else    'else)))
+
+(define (func-case-let x)
+  (case (car x) ((AAA) x)))
+
+(define (func-match arg)
+  (match
+    (arg)
+    
+    (() => '())
+
+    ((x y (kuku AS '=) a b . z) & (not (pair? y)) =>
+          `(,x ,y ,kuku ,a ,b . ,z))
+    
+    ((x . y) & (eqv? x y) => `(,x . ,y))
+    
+    ((_ . _) => '--)
+    
+    ))
+
+(define (func-match-let arg)
+  (match ((car arg))
+    (x & (not (pair? x)) => x) ))
+
+(define (func-select arg)
+  (select 
+    (arg)
+    
+    (() => '())
+    
+    ('(a b c) => '(a b c))
+    
+    (xxx & (atom? xxx) => xxx)
+    
+    (('key (x1 x2) x3) => `(key (,x1 ,x2) ,x3))
+
+    (('key1 #f (0 1 . 2)) => 'key1-key2-0-1-2)
+    
+    ((x0 (x1 x2) x3) => `(,x0 (,x1 ,x2) ,x3))
+    
+    (_ => arg)
+
+    ))
+
+(define (func-select-let arg)
+  (select ((car arg))
+    (x & (atom? x) => x) ))
+
+(define (func-with arg)
+  (with ((  (x y (kuku AS hoho) '= b . z)  arg ))
+   `(,arg ,x ,y ,kuku ,hoho ,b . ,z)))
+
+(define (func-with-let x y)
+  (with (( (a . b)  x )
+         ( (u . v)  (cons x y) ))
+    (list x y a b u v)))
+
+(define (func-qq x)
+  `(,x ,@x `(,x ,@x ,,x ,(,@x))))
+

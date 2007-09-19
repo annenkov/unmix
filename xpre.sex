@@ -1,0 +1,217 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                 ;;
+;;  File:     xpre.sex                                             ;;
+;;  Project:  the specializer Unmix                                ;;
+;;  Author:   S.A.Romanenko, the Institute for Applied             ;;
+;;            Mathematics, the USSR Acedemy of Sciences,           ;;
+;;            Moscow.                                              ;;
+;;  Created:  5 May 1989                                           ;;
+;;  Revised:  7 December 1989                                      ;;
+;;            4 April 1990                                         ;;
+;;            July 1990                                            ;;
+;;            December 1992                                        ;;
+;;            October 1993                                         ;;
+;;                                                                 ;;
+;;  Contents: Functions to run the Preprocessor's programs.        ;;
+;;                                                                 ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+(define (upre:switch action)
+
+  ;;
+  ;;    The function takes as input a Scheme program, compiles
+  ;; it into the Mixwell program, and annotates this program.
+  ;;    The Scheme program is taken from the file "file-name".
+  ;; "Descr" is a descripton of the division of the program's input
+  ;; parameters into static and dynamic ones.
+  ;;
+
+  (define (run-pre)
+    (let* ((src      (uio:request-file-name
+                       "Scheme program file name" "" "sex"))
+           (pgm      (uio:cut-off-ext src))
+           (dst      (string-append pgm ".ann"))
+           (descr    (request-descr))
+           (program  #f))
+      (newline)
+      (display "-- Pre-processing: ")
+      (display src) (display " -> ") (display dst)
+      (newline)
+      (set! program (uio:file->list src))
+      (set! program (Scheme-to-Mixwell pgm pgm program))
+      (set! program (annotate pgm pgm descr program))
+      (write-ann-prog dst program)
+      (newline)
+      (display "Target program has been written into ") (display dst)
+      (newline)))
+
+  ;;
+  ;;    The function takes as input a Scheme program and compiles
+  ;; it into Mixwell program.
+  ;;    The Scheme program is taken from the file "file-name".
+  ;;
+
+  (define (run-dsg)
+    (let* ((src  (uio:request-file-name
+                   "Source Scheme program file name" "" "sex"))
+           (dst  (uio:request-file-name
+                   "Target Mixwell program file name" src "mw"))
+           (program
+             (uio:file->list src)))
+      (set! program  (Scheme-to-Mixwell src dst program))
+      (uio:list->pp-file dst program 79)
+      (newline)
+      (display "Desugared program has been written into ") (display dst)
+      (newline)))
+
+  ;;
+  ;; The function takes as input a Scheme program, and
+  ;; removes macros (i.e. desugares, and ensugares).
+  ;;
+
+  (define (run-rmm)
+    (let* ((src  (uio:request-file-name
+                   "Source Scheme program file name" "" "sex"))
+           (pgm  (uio:cut-off-ext src))
+           (dst  (uio:request-file-name
+                   "Target Scheme program file name" src "scm"))
+           (program
+             (uio:file->list src)))
+      (set! program  (Scheme-to-Mixwell src pgm program))
+      (ux:load "xensg")
+      (set! program (uensg:main pgm dst program))
+      (set! uensg:main #f)
+      (uio:list->pp-file dst program 79)
+      (newline)
+      (display "Target program has been written into ") (display dst)
+      (newline)))
+
+  (define (Scheme-to-Mixwell src dst prog)
+    (newline)
+    (display  "-- Desugaring: ") (display src) (display " -> ") (display dst)
+    (newline)
+    ;;
+    ;; Compilation to Mixwell with "let" constructs.
+    ;;
+    (ux:load "xctmw")
+    (set! prog (uctmw:compile-program prog))
+    (set! uctmw:compile-program #f)
+    ;;
+    ;; Elimination of superfluous "let" constructs.
+    ;;
+    (ux:load "xctmwrl")
+    (set! prog (uctmwrl:rem-let-prog prog))
+    (set! uctmwrl:rem-let-prog #f)
+    ;;
+    ;; Elimination of all "let" constructs by introducing
+    ;; auxiliary functions.
+    ;;
+    (set! prog (uctmwrl:cut-let-prog prog))
+    (set! uctmwrl:cut-let-prog #f)
+    ;;
+    (display "-- Done --") (newline)
+    prog)
+
+  ;;
+  ;;    The function takes as input a Mixwell program and
+  ;; annotates it.
+  ;;    The Mixwell program is taken from the file "file-name".
+  ;; "Descr" is a descripton of the division of the program's
+  ;; input parameters into static and dynamic ones.
+  ;;
+
+  (define (run-ann)
+    (let* ((src     (uio:request-file-name
+                      "Mixwell program file name" "" "mw"))
+           (pgm     (uio:cut-off-ext src))
+           (dst     (string-append pgm ".ann"))
+           (descr   (request-descr))
+           (program (uio:file->list src)))
+      (set! program (annotate src dst descr program))
+      (write-ann-prog dst program)
+      (newline)
+      (display "Target program has been written into ") (display dst)
+      (newline)))
+
+  (define (annotate src dst descr program)
+    (check-descr program descr)
+    (newline)
+    (display "-- Annotating: ")
+    (display src) (display " -> ") (display dst)
+    (newline) (newline)
+    (ux:load "xresfn")
+    (ux:load "xsepsd")
+    (set! program (usepsd:unmix-static-and-dynamic program descr))
+    (set! usepsd:unmix-static-and-dynamic   #f)
+    (newline)
+    (ux:load "xpiu")
+    ;; Some destructive updating of the program!
+    (set! program (upiu:prevent-infinite-unfolding! program))
+    (set! upiu:prevent-infinite-unfolding!  #f)
+    (newline)
+    (ux:load "xpcd")
+    ;; Some destructive updating of the program!
+    (set! program (upcd:prevent-call-duplication! program))
+    (set! upcd:prevent-call-duplication!    #f)
+    (set! uresfn:collect-residual-functions #f)
+    program)
+
+  ;;
+  ;; Requests the description of parameters.
+  ;;
+
+  (define (request-descr)
+    (map (lambda (x) (string->symbol (make-string 1 (char-downcase x))))
+         (string->list
+           (uio:request-string "Parameter description: "))))
+
+  ;;
+  ;; Checks that the description of the input parameters
+  ;; is meaningful.
+  ;;
+
+  (define (check-descr mw-prog descr)
+    (when (not (is-sd-list? descr))
+          (error "Malformed description of the input parameters"
+                 descr))
+    (with (( ((_ parlist _ _) . -)  mw-prog ))
+          (when (not (eqv? (length parlist)
+                           (length descr)))
+                (error "Incorrect number of indicators in the description"
+                       descr)))
+    (when (not (memq 'd descr))
+          (error "No \"d\" in the description of the input parameters"
+                 descr))
+    'OK)
+
+  (define (is-sd-list? descr)
+    (and-map (lambda (item) (memq item '(s d))) descr))
+
+  ;;
+  ;; Writes the annotated program "ann-prog" into the file "dst" .
+  ;;
+
+  (define (write-ann-prog dst ann-prog)
+    (with* (( (rf-names d-fndef* s-fndef*)  ann-prog )
+            ( p  (open-output-file dst) )
+            )
+           (write rf-names p) (newline p)
+           (display "(" p) (newline p)
+           (uio:pp-list d-fndef* p)
+           (display ")(" p) (newline p)
+           (uio:pp-list s-fndef* p)
+           (newline p) (display ")" p)
+           (close-output-port p)))
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;  (upre:switch action)  ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  (case action
+    ((pre) (run-pre))
+    ((dsg) (run-dsg))
+    ((rmm) (run-rmm))
+    ((ann) (run-ann))
+    ))
+

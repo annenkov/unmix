@@ -1,0 +1,21 @@
+;; File: mprev.dat
+
+;; This file contains data for specializing
+;; the interpreter in the file "zmp.s".
+
+;;
+;; The function reverse programmed in MP.
+;;
+
+(program
+  (pars lst)
+  (dec result)
+  (seq
+    (while lst
+           (seq
+             (:= result (cons (car lst) result))
+             (:= lst (cdr lst))
+             ))
+    (stop result)
+    ))
+

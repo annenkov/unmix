@@ -1,0 +1,217 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                 ;;
+;;  File:     xar.sex                                              ;;
+;;  Project:  the specializer Unmix                                ;;
+;;  Author:   S.A.Romanenko, the Institute for Applied             ;;
+;;            Mathematics, the USSR Acedemy of Sciences,           ;;
+;;            Moscow.                                              ;;
+;;  Created:  5 May 1989                                           ;;
+;;  Revised:  7 December 1989                                      ;;
+;;            10 April 1990                                        ;;
+;;            August, 1990                                         ;;
+;;            December, 1992                                       ;;
+;;                                                                 ;;
+;;  Contents: The Main procedure of the Arity Raiser               ;;
+;;                                                                 ;;
+;;  Synopsis:                                                      ;;
+;;            (uar:main src dst prog)                              ;;
+;;                                                                 ;;
+;;            src   - source program name                          ;;
+;;            dst   - destination program name                     ;;
+;;            prog  - a Mixwell program                            ;;
+;;                                                                 ;;
+;;  Description:                                                   ;;
+;;            The program analyzes the structure of the actual     ;;
+;;            parameters in all function calls and the way         ;;
+;;            in which the parameters are accessed in the          ;;
+;;            definition of the functions. Then the information    ;;
+;;            obtained is used to split the parameters of          ;;
+;;            functions in the program to raise the function's     ;;
+;;            arity.                                               ;;
+;;                                                                 ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+;;  Data structures used in the Arity Raiser:
+;;  ========================================
+;;
+;;  Description:
+;;
+;;    <Description>     ::= ( <FunDescription>* )
+;;    <FunDescription>  ::= ( <Fname> . <ParDescription> )
+;;    <ParDescr>        ::= ( <Type>* )
+;;    <Type>            ::= 'absent
+;;                      |   ('atom <Lisp atom> )
+;;                      |   ('cons <Type> <Type> )
+;;                      |   ('cons? <Type> <Type> )
+;;                      |   'any
+;;
+;;      A description is a list of function descriptions, where
+;;    each function's description consists of the name of the
+;;    function and a list of the descriprions of the function's
+;;    parameters. The description of a parameter gives information
+;;    about the structure of all the expressions that appear
+;;    in the program as actual parameters corresponding to this
+;;    formal parameter.
+;;      A type 'absent tells that there is no information about
+;;    the parameter.
+;;      A type ('atom Atom ) tells that all actual parameters
+;;    are sure to produce an atom Atom.
+;;      A type ('cons Type1 Type2 ) or ('cons? Type1 Type2 ) tells
+;;    that all actual parameters have the structure "(cons ... ...)"
+;;    and the cons's components are of the type Type1 and Type2.
+;;      A type 'any tells that corresponding actual parameters
+;;    can have any structure.
+;;      Types ('cons Type1 Type2 ) or ('cons? Type1 Type2 ) have
+;;    the same meaning except that the components of the type
+;;    ('cons? Type1 Type2 ) are not sure to be accessed by some
+;;    "car" or "cdr".
+;;
+;;  Context:
+;;
+;;    <Context> ::= nil
+;;              |   ('car . <Context> )
+;;              |   ('cdr . <Context> )
+;;              |   ('cons <Type> <Type> )
+;;
+;;    A context records some attempts at selecting components of
+;;  the expression under consideration.
+;;    A context nil records no attempts at accessing components
+;;  of the expression.
+;;    A context ('car . Context ) tells that there is an attempt at
+;;  selecting the car-component of the expression, and Context
+;;  records attempts at accessing this component.
+;;    A context ('cdr . Context ) tells that there is an attempt at
+;;  selecting the cdr-component of the expression, and Context
+;;  records attempts at accessing this component.
+;;    A context ('cons Type1 Type2) tells that there are attempts at
+;;  selecting the car- and cdr-components of the expression,
+;;  and the information about accesses to the components can
+;;  be extracted from the types Type1 and Type2.
+;;
+
+;;
+
+
+;;  Naming conventions:
+;;  ==================
+;;
+;;    prog        - the Mixwell program to analyze.
+;;    types       - a description of all the function's parameters.
+;;    vn*         - the names of the variables known by a function
+;;                  under abstract interpretation.
+;;    vv*         - the abstract values (types) bound to the
+;;                  variables found in "vn*".
+;;    t,t1,t2     - types.
+;;    context     - a context that records the attempts
+;;                  at selecting components of the expression
+;;                  under consideration.
+;;    patt        - a type used as a pattern to be matched against
+;;                  another type.
+
+
+;;  A note on the algorithm used:
+;;  ============================
+;;
+;;  The program contains tree phases:
+;;
+;;   1) Analysis of the argument types by an abstract interpretation
+;;      of the program. The result is a description of the function's
+;;      parameter types.
+;;
+;;   2) Access Analysis by a backward analysis of the program.
+;;      The result is a description in which some types may be
+;;      generalized as compared to the types produced by the
+;;      previous phase.
+;;
+;;   3) Parameter splitting, constant propagation and local
+;;      optimization.
+;;
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                 ;;
+;;                           Main Function                         ;;
+;;                                                                 ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+(define (uar:main src dst prog)
+
+  (define types #f)  ;; A description of the function's argument types.
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;                                                                 ;;
+  ;;                 Pretty-printing Descriptions                    ;;
+  ;;                                                                 ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  ;;
+  ;; Formats and prints "types".
+  ;;
+
+  (define (print-types types)
+    (write (form-types types))
+    (newline))
+
+  ;;
+  ;; Returns a descriptor formatted for printing.
+  ;;
+
+  (define (form-types types)
+    (map (lambda (fdescr)
+           (with (( (fname . type*)  fdescr ))
+                 `(,fname . ,(map form-type type*))
+                 ))
+         types))
+
+  ;;
+  ;; Returns the type "type" in the form suitable for printing.
+  ;;
+  ;; Note: Formatting the type '(atom _) will produce the same
+  ;;       result as formatting the type 'any, which may well cause
+  ;;       some ambiguity...
+  ;;
+
+  (define (form-type type)
+    (select
+      (type)
+
+      ('absent       => '_)
+      ('any          => '_)
+      (('atom  a)    => a)
+      (('cons t1 t2) => `(,(form-type t1) . ,(form-type t2)))
+
+      ))
+
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;  (uar:main src dst prog)  ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  (newline)
+  (display "-- Arity Raising:  ") (display src) (display " -> ") (display dst)
+  (newline) (newline)
+  (display "Analysis of the Argument Types") (newline)
+  (ux:load "xarta")
+  (display   "Iterations: ")
+  (set! types  (uarta:analyze-argument-types prog))
+  (set! uarta:analyze-argument-types  #f)
+  (newline)
+  (display "Structure of Arguments:") (newline)
+  (print-types types)
+  (display "Analysis of the Parameter Accesses") (newline)
+  (ux:load "xaraa")
+  (display   "Iterations: ")
+  (uaraa:analyze-parameter-access! prog types)
+  (set! uaraa:analyze-parameter-access!  #f)
+  (newline)
+  (display "Structure of Arguments:") (newline)
+  (print-types types)
+  (display "Splitting of Parameters") (newline)
+  (ux:load "xarps")
+  (set! prog  (uarps:optimize prog types))
+  (set! uarps:optimize  #f)
+  (display "-- Done --") (newline)
+  prog)
+

@@ -1,0 +1,50 @@
+;; File: prsexp.dat
+
+;; This file contains data for specializing the program
+;; in the file "zprs.s".
+
+;;
+;; A table for the parser that corresponds to the
+;; following grammar:
+;;
+;;    Exp       --> Term Exp-Rest
+;;    Exp-Rest  --> "+" Term Exp-Rest
+;;    Exp-Rest  -->
+;;    Term      --> Factor Term-Rest
+;;    Term-Rest --> "*" Factor Term-Rest
+;;    Term-Rest -->
+;;    Factor    --> "(" Exp ")"
+;;    Factor    --> "I"
+;;
+
+(
+(Exp)  ;; Starting non-terminal.
+
+((Exp)
+  error
+  "I" ( (Term)(Exp-Rest) )
+  "(" ( (Term)(Exp-Rest) )
+)
+((Exp-Rest)
+  ( )
+  "+" ( "+"(Term)(Exp-Rest) )
+  ")" ( )
+)
+((Term)
+  error
+  "I" ( (Factor)(Term-Rest) )
+  "(" ( (Factor)(Term-Rest) )
+)
+((Term-Rest)
+  ( )
+  "+" ( )
+  "*" ( "*"(Factor)(Term-Rest) )
+  ")" ( )
+)
+((Factor)
+  error
+  "I" ( "I" )
+  "(" ( "("(Exp)")" )
+)
+
+)

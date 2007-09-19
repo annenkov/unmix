@@ -1,0 +1,12 @@
+;; File: let.sex
+
+;; This is an example program to test the compiler
+;; from Scheme to Mixwell.
+
+(define (test x y)
+  (let ((u (+ x y)) (v (- x y)))
+    (if u
+        (let ((u (+ u 1)) (v (+ v 1)))
+          (list u u v v))
+        (list u v))))
+

@@ -1,0 +1,96 @@
+;; File: TM1.SEX
+
+;; Some tests!!!
+
+(define (arg)
+  (match
+    (arg)
+    (_ => arg)
+    (x => x)
+  ))
+
+(define (thru arg)
+  (match
+    (arg)
+    
+    (x & (symbol? x) => x)
+    
+    ((_ . rest) => (thru rest))
+    
+    ))
+
+(define (a-x arg)
+  (match
+    ((cdr arg))
+    
+    ((z as ('a x)) => `(,z (a ,x)))
+    
+    ))
+
+(with (( (u . v) (lookup-variable uv) ))
+  (cons u v))
+
+(with* (( (z as (999 x)) arg)
+        ( (u . v)        uv))
+  `(,u ,v ,z (999 ,x))
+  )
+
+(select
+  (9999)
+  
+  (() => '())
+  ('kuku => 'kuku)
+  ("kuku" => "kuku")
+  (_ => '())
+  (xxx => xxx)
+  ((999 x1 x2) => `(999 ,x1 ,x2))
+  (('key x1 x2) & (equal? x1 x2) => `(key ,x1 ,x2))
+  ((x0 x1 x2) => `(,x0 ,x1 ,x2))
+  )
+
+(define (rev lst)
+  (select
+    (lst)
+    
+    (() => '())
+    
+    ((x . rest) => `(,@(rev rest) ,x))
+    
+    ))
+
+(define (logxor x y)
+  (select
+    (x y)
+    
+    (0 0 => 0)
+    (0 1 => 1)
+    (1 0 => 1)
+    (1 1 => 0)
+    
+    ))
+
+(define (dd lst)
+  (match
+    (lst)
+    
+    ((x y . rest) & (equal? x y) =>
+     (dd `(,y ,@rest)))
+     
+    ((x . rest) =>
+     `(,x ,@(dd rest)))
+     
+    (() =>
+     '())
+     
+    ))
+
+(define (ackermann n m)
+  (select
+    (n m)
+
+    (0 m => (+ m 1))
+    (n 0 => (ackermann (- n 1) 1))
+    (n m => (ackermann (- n 1) (ackermann n (- m 1))))
+
+    ))
+    

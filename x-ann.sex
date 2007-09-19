@@ -1,0 +1,54 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                 ;;
+;;  File:     x-ann.s                                              ;;
+;;  Project:  the specializer Unmix                                ;;
+;;  Author:   S.A.Romanenko, the Institute for Applied             ;;
+;;            Mathematics, the USSR Acedemy of Sciences,           ;;
+;;            Moscow.                                              ;;
+;;  Created:  August 1990                                          ;;
+;;  Revised:                                                       ;;
+;;                                                                 ;;
+;;  Contents: Macro definitions of some constructs, which are      ;;
+;;            useless for ordinary programming, but are used       ;;
+;;            to annotate source programs.                         ;;
+;;                                                                 ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;
+;; This construct is used for marking residual function calls.
+;; "exp" is supposed to be a function call of the form
+;; (<fname> <arg> ...).
+;;
+
+(extend-syntax
+  (rcall)
+
+  ((rcall exp) exp)
+
+  )
+
+;;
+;; This construct is used to convert static values to dynamic ones.
+;; The result of specializing (generalize <exp>) will be dynamic
+;; even if <exp> is static.
+;;
+
+(extend-syntax
+  (generalize)
+
+  ((generalize exp) exp)
+
+  )
+
+;;
+;; Following are some general-purpose macro-extensions...
+;;
+
+(extend-syntax
+  (when)
+
+  ((when pred exp1 exp2 ...)
+   (if pred (begin exp1 exp2 ...)))
+
+  )
+

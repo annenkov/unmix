@@ -1,0 +1,532 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                 ;;
+;;  File:     xpiu.s                                               ;;
+;;  Project:  the specializer Unmix                                ;;
+;;  Author:   S.A.Romanenko, the Institute for Applied             ;;
+;;            Mathematics, the USSR Academy of Sciences,           ;;
+;;            Moscow.                                              ;;
+;;  Created:  20 May 1989                                          ;;
+;;  Revised:  6 April 1990                                         ;;
+;;            August 1990                                          ;;
+;;                                                                 ;;
+;;  Contents: The first phase of the Call Annotator                ;;
+;;            that prevents infinite unfolding                     ;;
+;;            of function calls.                                   ;;
+;;                                                                 ;;
+;;  Synopsis:                                                      ;;
+;;            (prevent-infinite-unfolding prog)                    ;;
+;;                                                                 ;;
+;;            prog  - an annotated Mixwell program                 ;;
+;;                                                                 ;;
+;;  Description:                                                   ;;
+;;            The program makes call annotations that guarantee    ;;
+;;            absence of infinite unfolding. It finds all          ;;
+;;            loops in the program and marks as residual           ;;
+;;            all calls that do not satisfy the structural         ;;
+;;            induction condition.                                 ;;
+;;                                                                 ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+;;  Data structures:
+;;  ===============
+;;
+;;  Loop Description List:
+;;
+;;    <LoopDescriptionList> ::= ( <LoopDescription>* )
+;;    <LoopDescription>     ::= ( <CallDescription> .  <Path> )
+;;    <Path>                ::= ( <CallDescription>* )
+;;    <CallDescription>     ::= ( <Fname> . <Trace> )
+;;    <Trace>               ::= ( <Integer>* )
+;;
+;;
+;;      A loop description list is a list of loop descriptions, where
+;;  each loop's description contains a call description and a path.
+;;  The path records a sequence of calls that leads from the loop's
+;;  head function to the same function. The call description is equal
+;;  to the last call description in the path. Each call's description
+;;  consists of a function name and a trace that describes the position
+;;  of the call in the function's definition.
+;;
+;;  Size Description:
+;;
+;;    <SizeDescription> ::= 'any
+;;                      |   ('le . <Vname> )
+;;                      |   ('lt . <Vname> )
+;;
+;;    A size description is an abstract value that gives information
+;;  about the size that the corresponding static value may have during
+;;  partial evaluation.
+;;    A size description 'any tells that there is no information
+;;  about the value.
+;;    A size description ('le . Vname ) tells that the size of the
+;;  value will be less or equal than the size of the value
+;;  the variable "Vname" was bound to at the head of a loop.
+;;    A size description ('lt . Vname ) tells that the size of the
+;;  value will be less than the size of the value the variable "Vname"
+;;  was bound to at the head of a loop.
+
+
+;;  Naming conventions:
+;;  ==================
+;;
+;;    prog        - the Mixwell program to analyze.
+;;    loops       - a loop description list.
+;;    path        - a path in the program.
+;;    trace       - a trace in a function definition.
+;;    vn          - a list of variable names.
+;;    vv          - a list of abstract values (size descriptions)
+;;                  corresponding to the variables found in "vn".
+
+
+;;  A note on the algorithm used:
+;;  ============================
+;;
+;;    A call to a function with only static variables is always
+;;  made eliminable.
+;;    The decision for a call to a function with at least one
+;;  dynamic variable makes use of the concept of an "inductive
+;;  variable". A variable in a call to the head of a loop is
+;;  called inductive if the corresponding argument expression
+;;  produces a value which is a proper substructure of the value
+;;  of the variable it was boun to when the head function was
+;;  callled.
+;;    A call to the head of a loop is made eliminable if there
+;;  is at least one inductive static variable in the call and
+;;  the remaining static variables are either unchanged or
+;;  inductive.
+;;
+;;   The program contains tree phases:
+;;
+;;   1) Finding all loops in the program.
+;;
+;;   2) Finding all "dangerous" calls.
+;;
+;;   3) Annotating all "dangerous" calls as residual.
+;;
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                 ;;
+;;                        Main Function                            ;;
+;;                                                                 ;;
+;; Global effect: Replaces some keywords "call" with "rcall"       ;;
+;; in a program in order to avoid infinite unfolding.              ;;
+;;                                                                 ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+(define (upiu:prevent-infinite-unfolding! prog)
+
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;                                                                 ;;
+  ;;                          Finding Loops                          ;;
+  ;;                                                                 ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  ;;
+  ;; Finds all loops in a program.
+  ;;
+
+  (define (find-loops-prog rf prog)
+
+    (define loops #f)
+
+    (define (find-loops-func fname)
+      (with (( (_ _ _ _ body)  (assq fname prog) ))
+            (find-loops
+              body fname '() (list fname) '())))
+
+    ;;
+    ;; Returns a list of loops found by traversing
+    ;; the expression "exp".
+    ;; "fn-path" is only used to speed up loop detection.
+    ;;
+
+    (define (find-loops exp fn trace fn-path path)
+      (select
+        (exp)
+
+        (_ & (symbol? exp) => #f)
+
+        (('static exp1) => #f)
+
+        (('ifs exp0 . exp*) =>
+         (find-loops* exp* 1 fn trace fn-path path))
+
+        (('ifd . exp*) =>
+         (find-loops* exp* 0 fn trace fn-path path))
+
+        (('call fname s-exp* d-exp*) =>
+         (find-loops* d-exp* 0 fn trace fn-path path)
+         (if (memq fname fn-path)
+             (record-loop fname fn trace path)
+             (visit-function fname fn trace fn-path path)))
+
+        (('rcall fname  s-exp* d-exp*) =>
+         (find-loops* d-exp* 0 fn trace fn-path path))
+
+        (('xcall fname . exp*) =>
+         (find-loops* exp* 0 fn trace fn-path path))
+
+        ((op . exp*) =>
+         (find-loops* exp* 0 fn trace fn-path path))
+
+        (_ =>
+           (error "Malformed expression: " exp))
+
+        ))
+
+    (define (find-loops* exp* num fn trace fn-path path)
+      (select
+        (exp*)
+
+        (() => #f)
+
+        ((exp . rest) =>
+         (find-loops exp fn `(,num . ,trace) fn-path path)
+         (find-loops* rest (+ num 1) fn trace fn-path path))
+
+        ))
+
+    ;;
+    ;; Records a loop found
+    ;;
+
+    (define (record-loop fname fn trace path)
+      (let ((new-loop
+              `( (,fn . ,(reverse trace))
+                 . ,(extract-loop fname `((,fn . ,trace) . ,path) '()))
+              ))
+        (when (not (member new-loop loops))
+              (set! loops `(,new-loop . ,loops)))))
+
+    ;;
+    ;; Extracts a loop from a path.
+    ;;
+
+    (define (extract-loop fname path loop)
+      (with* (( ((fname1 . trace1) . path-rest)  path )
+              ( loop  `((,fname1 . ,(reverse trace1)) . ,loop) )
+              )
+             (if (eq? fname fname1)
+                 loop
+                 (extract-loop fname path-rest loop))))
+
+    (define (visit-function fname fn trace fn-path path)
+      (with (( (_ _ _ _ body)  (assq fname prog) )
+             )
+            (find-loops
+              body fname '()
+              `(,fname . ,fn-path)
+              `((,fn . ,trace) . ,path)
+              )))
+
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    ;;  (find-loops-prog rf prog)  ;;
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+    (set! loops '())
+    (for-each (lambda (fname) (find-loops-func fname)) rf)
+    loops)
+
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;                                                                 ;;
+  ;;                  Collecting Dangerous Calls                     ;;
+  ;;                                                                 ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  ;;
+  ;; Returns a list of dangerous calls unfolding of which
+  ;; could lead to generating an infinite residual program.
+  ;;
+
+  (define (collect-dangerous-calls loops prog)
+
+    (define dangerous-calls #f)
+
+    (define (collect-in-fundef loop)
+      (with (( (back-call . path)  loop )
+             )
+            (cond
+              ((member back-call dangerous-calls) #f)
+              ((dangerous-path? path)
+               (set! dangerous-calls `(,back-call . ,dangerous-calls)))
+              (else #f))))
+
+    ;;
+    ;; Tests whether a path is dangerous.
+    ;;
+
+    (define (dangerous-path? path)
+      (with* (( ((fname . trace) . path-rest)  path )
+              ( (_ svn dvn _ body)  (assq fname prog) )
+              ( new-svv  (go-through-path
+                           body trace path-rest svn (make-le svn)) )
+              )
+             (or (not (all-non-increasing? svn new-svv))
+                 (not (some-decreasing? new-svv)))))
+
+    ;;
+    ;; Goes through a path and computes the size descriptions
+    ;; of variables at the end of the path.
+    ;;
+
+    (define (go-through-path exp trace path vn vv)
+      (select
+        (exp)
+
+        (_ & (symbol? exp) =>
+               (error "No way in the expression" exp))
+
+        (('static _) =>
+         (error "No way in the expression" exp))
+
+        (('call fname s-exp* d-exp*) =>
+         (select (trace)
+                 (() =>
+                  (go-through-call
+                    fname (decr-eval* s-exp* vn vv) path))
+                 ((num . trace-rest) =>
+                  (go-through-path
+                    (list-ref d-exp* num) trace-rest path vn vv))
+                 ))
+
+        (('rcall fname  s-exp* d-exp*) =>
+         (with (( (num . trace-rest)  trace )
+                )
+               (go-through-path
+                 (list-ref d-exp* num) trace-rest path vn vv)))
+
+        (('xcall fname . exp*) =>
+         (with (( (num . trace-rest)  trace )
+                )
+               (go-through-path
+                 (list-ref exp* num) trace-rest path vn vv)))
+
+        ((op . exp*) =>
+         (with (( (num . trace-rest)  trace )
+                )
+               (go-through-path
+                 (list-ref exp* num) trace-rest path vn vv)))
+
+        (_ =>
+           (error "Malformed expression: " exp))
+
+        ))
+
+    (define (go-through-call fname svv path)
+      (select
+        (path)
+
+        (() => svv)
+
+        ((path-head . path-rest) =>
+         (with (( (_ svn dvn _ body)  (assq fname prog) )
+                ( (_ . trace)  path-head )
+                )
+               (go-through-path body trace path-rest svn svv)))
+
+        ))
+
+    ;;
+    ;; Abstract evaluation of the expression "exp"
+    ;; in the environment (vn,vv) to get information
+    ;; about decreasing variable values.
+    ;;
+
+    (define (decr-eval exp vn vv)
+      (select
+        (exp)
+
+        (_ & (symbol? exp) =>
+               (lookup-variable exp vn vv))
+
+        (('quote _) => 'any)
+
+        ((op . exp*)
+         & (memq op '(car cdr)) =>
+         (decr-eval-sel (decr-eval (car exp*) vn vv)))
+
+        ((_ . _) => 'any)
+
+        (_ =>
+           (error "Malformed expression: " exp))
+
+        ))
+
+    (define (decr-eval* exp* vn vv)
+      (map (lambda (exp) (decr-eval exp vn vv)) exp*))
+
+    (define (decr-eval-sel a-value)
+      (select
+        (a-value)
+
+        ('any => 'any)
+
+        (('lt . vname) => a-value)
+
+        (('le . vname) => `(lt . ,vname))
+
+        ))
+
+    ;;
+    ;; Makes a list of abstract variable values.
+    ;;
+
+    (define (make-le vn)
+      (map (lambda (vname) `(le . ,vname)) vn))
+
+    ;;
+    ;; Tests whether there is no variable value that
+    ;; might have increased.
+    ;;
+
+    (define (all-non-increasing? vn vv)
+      (select
+        (vn vv)
+
+        (() () => #t)
+
+        ((vname . vn-rest) (vvalue . vv-rest) =>
+         (select
+           (vvalue)
+
+           ('any => #f)
+
+           (('lt . vname1) =>
+            (and (eq? vname vname1)
+                 (all-non-increasing? vn-rest vv-rest)))
+
+           (('le . vname1) =>
+            (and (eq? vname vname1)
+                 (all-non-increasing? vn-rest vv-rest)))
+           ))
+
+        ))
+
+    ;;
+    ;; Tests whether there is a variable value that has decreased
+    ;; (they are all assumed to be non-increasing because
+    ;; this function is called after "all-non-increasing").
+    ;;
+
+    (define (some-decreasing? vv)
+      (or-map (lambda (vvalue)
+                (select (vvalue)
+                        (('lt _) => #t)
+                        (('le _) => #f)))
+              vv))
+
+    ;;
+    ;; Returns the value of the variable "vname" in the environment
+    ;; (vn,vv).
+    ;;
+
+    (define (lookup-variable vname vn vv)
+      (select
+        (vn vv)
+
+        (() () => (error "Undefined variable: " vname))
+
+        ((vn . nrest) (vv . vrest) =>
+         (if (eq? vname vn)
+             vv
+             (lookup-variable vname nrest vrest)))
+
+        ))
+
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    ;;  (collect-dangerous-calls loops prog)  ;;
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+    (set! dangerous-calls '())
+    (for-each collect-in-fundef loops)
+    dangerous-calls)
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;                                                                 ;;
+  ;;                    Annotating Dangerous Calls                   ;;
+  ;;                                                                 ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  ;;
+  ;; Replaces "call" with "rcall" for all function calls
+  ;; recorded in "dangerous calls".
+  ;;
+
+  (define (mark-dangerous-calls! prog dangerous-calls)
+
+
+    (define (mark-dc-fundef! fname trace prog)
+      (with (( (_ _ _ _ body)  (assq fname prog) )
+             )
+             (mark-dc! body trace)))
+
+    (define (mark-dc! exp trace)
+      (select
+        (exp)
+
+        (_ & (symbol? exp) =>
+           (error "No way in the expression: " exp))
+
+        (('static exp1) =>
+         (error "No way in the expression: " exp))
+
+        ((&call . _)
+         & (memq &call '(call rcall)) =>
+	 (with (( (_ fname s-exp* d-exp*) exp ))
+	       (select
+		(trace)
+		(() 
+		 => (set-car! exp 'rcall))
+		((num . trace-rest)
+		 => (mark-dc! (list-ref d-exp* num) trace-rest))
+		)))
+
+        (('xcall fname . exp*) =>
+         (with (( (num . trace-rest)  trace )
+                )
+               (mark-dc! (list-ref exp* num) trace-rest)
+               ))
+
+        ((op . exp*) =>
+         (with (( (num . trace-rest)  trace )
+                )
+               (mark-dc! (list-ref exp* num) trace-rest)
+               ))
+
+        ))
+
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    ;;  (mark-dangerous-calls! prog dangerous-calls)  ;;
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+    (for-each
+      (lambda (back-call)
+        (with* (( (fname . trace)  back-call )
+                )
+               (mark-dc-fundef! fname trace prog)
+               ))
+      dangerous-calls))
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;  (upiu:prevent-infinite-unfolding! prog)  ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  (display "Preventing Infinite Unfolding") (newline)
+  (with (( (rf d-fundef* s-fundef*)  prog ))
+        (display "Finding Loops") (newline)
+        (let* ((loops  (find-loops-prog rf d-fundef*))
+               (dangerous-calls
+                 (collect-dangerous-calls loops d-fundef*)))
+          (display "Dangerous calls:") (newline)
+          (write dangerous-calls) (newline)
+          (display "Cutting Dangerous Loops") (newline)
+          (mark-dangerous-calls! d-fundef* dangerous-calls)
+          (let* ((rf  (uresfn:collect-residual-functions d-fundef*)))
+            (display "-- Done --") (newline)
+            `(,rf ,d-fundef* ,s-fundef*)))))
+

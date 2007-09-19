@@ -1,0 +1,552 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                 ;;
+;;  File:     xcgr.sex                                             ;;
+;;  Project:  the specializer Unmix                                ;;
+;;  Author:   S.A.Romanenko, the Institute for Applied             ;;
+;;            Mathematics, the USSR Acedemy of Sciences,           ;;
+;;            Moscow.                                              ;;
+;;  Credits:  The program is based on the corresponding            ;;
+;;            phase of the specializer Mix made by                 ;;
+;;            Peter Sestoft and Kim H|glund                        ;;
+;;            (The Mix Group), mix@diku.UUCP,                      ;;
+;;            at the University of Copenhagen.                     ;;
+;;  Created:  5 May 1989                                           ;;
+;;  Revised:  7 December 1989                                      ;;
+;;            9 April 1990                                         ;;
+;;            August 1990                                          ;;
+;;                                                                 ;;
+;;  Contents: Call Graph Reducer                                   ;;
+;;                                                                 ;;
+;;  Synopsis:                                                      ;;
+;;            (ucgr:main src dst prog)                             ;;
+;;                                                                 ;;
+;;            src   - source program name                          ;;
+;;            dst   - destination program name                     ;;
+;;            prog  - a Mixwell program                            ;;
+;;                                                                 ;;
+;;  Description:                                                   ;;
+;;            Reduces the call graph of the Mixwell program        ;;
+;;            "prog".                                              ;;
+;;                                                                 ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                 ;;
+;;                     Call Graph Reduction                        ;;
+;;                                                                 ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;  Data Structures used by the Call Graph Reducer
+;;  ==============================================
+;;
+;;  CycleHeadList:
+;;
+;;    <CycleHeadList> ::= ( <Fname>* )
+;;
+;;    A <CycleHeadList> is a list of function names, where
+;;    each element is the name of a function  which is a head
+;;    of a cycle in the program's call graph.
+;;
+
+;;  Naming Conventions:
+;;  ==================
+;;
+;;    prog        - the residual Mixwell program.
+;;    path        - a path in the call graph as a list of
+;;                  the functions called.
+;;    cutpoints   - a CycleHeadList as described above.
+;;    pending     - a list of names of functions pending to
+;;                  be unfolded.
+;;    out         - a list of unfolded functions.
+;;    suspend     - a CycleHeadList as described above.
+;;    vn          - a list of variable names
+;;    vv          - a list of variable values
+
+
+(define (ucgr:main src dst src-prog)
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;                                                                 ;;
+  ;;                      Call Graph Analysis                        ;;
+  ;;                      -------------------                        ;;
+  ;;  Global effect: Produces a list of names of functions which     ;;
+  ;;  will be unfolded under no circumstances. A function will       ;;
+  ;;  appear in the list if it is the head of a cycle in the call    ;;
+  ;;  graph of the program.                                          ;;
+  ;;                                                                 ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  ;;
+  ;;  Perform the call graph analysis on the (residual) Mixwell
+  ;;  program "prog". A list of cycle-heads is returned.
+  ;;
+
+  (define (find-cutpoints prog)
+
+    (define visited-funcs #f)
+    (define cutpoints #f)
+
+    ;;
+    ;; Updates "cutpoints" with the functions met during
+    ;; analysis of the function "fcn".
+    ;;
+
+    (define (visit! fcn path)
+      (with (( (_ _ _ body)  (assq fcn prog) )
+             )
+            (when (not (memq fcn visited-funcs))
+                  (set! visited-funcs `(,fcn . ,visited-funcs)))
+            (find-cycles! body `(,fcn . ,path))))
+
+    ;;
+    ;; Updates "cutpoints" with the functions met during
+    ;; the analysis of the function calls in "exp".
+    ;;
+
+    (define (find-cycles! exp path)
+      (select
+        (exp)
+
+        (_ & (symbol? exp) => #f)
+
+        (('quote _) => #f)
+
+        (('call fname . exp*) =>
+         (cond
+           ((memq fname path)
+            (when (not (memq fname cutpoints))
+                  (set! cutpoints `(,fname . ,cutpoints)))
+            (find-cycles*! exp* path))
+           ((memq fname visited-funcs)
+            (find-cycles*! exp* path))
+           (else
+             (visit! fname path)
+             (find-cycles*! exp* path))))
+
+        (('xcall fname . exp*) =>
+         (find-cycles*! exp* path))
+
+        ((op . exp*) =>
+         (find-cycles*! exp* path))
+
+        ))
+
+    ;;
+    ;; Updates "cutpoints" with the functions met during
+    ;; analysis of the function calls in the expressions "exp*".
+    ;;
+
+    (define (find-cycles*! exp* path)
+      (for-each (lambda (exp) (find-cycles! exp path)) exp*))
+
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    ;;  (find-cutpoints prog)  ;;
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+    (set! visited-funcs '())
+    (set! cutpoints '())
+    (with (( ((goal _ _ _) . _)  prog )
+           )
+          (visit! goal '())
+          cutpoints))
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;                                                                 ;;
+  ;;      Function Call Unfolding and Reduction of Expressions       ;;
+  ;;                                                                 ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  ;;
+  ;; Returns the program "prog" unfolded according to the information
+  ;; provided in "suspend".
+  ;;
+
+  (define (unfold suspend prog)
+
+    (define pending #f) ;; Names of functions to be generated.
+    (define current #f) ;; The name of function being generated.
+    (define out     #f) ;; Generated function definitions.
+
+    ;;
+    ;; Returns "out" updated with the functions in "pending"
+    ;; and any functions on which they depend.
+    ;;
+
+    (define (choose-next!)
+      (when (not (null? pending))
+            (set! current (car pending))
+            (set! pending (cdr pending))
+            (set! out `(,(make-fundef!) . ,out))
+            (choose-next!)))
+
+    ;;
+    ;; Returns a new function definition and updates "pending"
+    ;; with the names of functions called in this function
+    ;; definition.
+    ;;
+
+    (define (make-fundef!)
+      (with* (( (_ parlist _ body)  (assq current prog) ))
+             `(,current ,parlist = ,(reduce-exp! body parlist parlist))
+             ))
+
+    ;;
+    ;; Returns "exp" with function calls unfolded if found feasible.
+    ;; Functions recorded in "suspend" are not unfolded. If unfolding
+    ;; would lead to call duplication unfolding is not done.
+    ;;
+
+    (define (reduce-exp! exp vn vv)
+      (select
+        (exp)
+
+        (vname
+          & (symbol? vname) =>
+          (lookup-value vname vn vv))
+
+        (('quote const) => exp)
+
+        (('car exp1) =>
+         (reduce-car (reduce-exp! exp1 vn vv)))
+
+        (('cdr exp1) =>
+         (reduce-cdr (reduce-exp! exp1 vn vv)))
+
+        (('pair? exp1) =>
+         (reduce-pair? (reduce-exp! exp1 vn vv)))
+
+        (('null? exp1) =>
+         (reduce-1-op 'null? null?
+                      (reduce-exp! exp1 vn vv)))
+
+        (('not exp1) =>
+         (reduce-1-op 'not not
+                      (reduce-exp! exp1 vn vv)))
+
+        (('cons exp1 exp2) =>
+         (reduce-cons (reduce-exp! exp1 vn vv)
+                      (reduce-exp! exp2 vn vv)))
+
+        (('equal? exp1 exp2) =>
+         (reduce-2-op 'equal? equal?
+                      (reduce-exp! exp1 vn vv)
+                      (reduce-exp! exp2 vn vv)))
+
+        (('eq? exp1 exp2) =>
+         (reduce-2-op 'eq? eq?
+                      (reduce-exp! exp1 vn vv)
+                      (reduce-exp! exp2 vn vv)))
+
+        (('eqv? exp1 exp2) =>
+         (reduce-2-op 'eqv? eqv?
+                      (reduce-exp! exp1 vn vv)
+                      (reduce-exp! exp2 vn vv)))
+
+        (('if exp1 exp2 exp3) =>
+         (reduce-if! (reduce-exp! exp1 vn vv)
+                     exp2 exp3 vn vv))
+
+        (('call fname . exp*) =>
+         (let ((arg*  (reduce-exp*! exp* vn vv))
+               )
+           (if (memq fname suspend)
+               (reduce-call! fname arg*)
+               (with (( (_ parlist _ body)  (assq fname prog) )
+                      )
+                     (if (suspend? parlist arg* body)
+                         (reduce-call! fname arg*)
+                         (reduce-exp! body parlist arg*))))))
+
+        (('xcall fname . exp*) =>
+         `(xcall ,fname . ,(reduce-exp*! exp* vn vv)))
+
+        (('xapply . exp*) =>
+         (reduce-xapply (reduce-exp*! exp* vn vv)))
+
+        ((fname . exp*) =>
+         `(,fname . ,(reduce-exp*! exp* vn vv)))
+
+        ))
+
+    (define (reduce-exp*! exp* vn vv)
+      (map (lambda (exp) (reduce-exp! exp vn vv)) exp*))
+
+    (define (reduce-call! fname exp*)
+      (when (and (not (assq fname out))
+                 (not (eq? fname current))
+                 (not (memq fname pending)))
+            (set! pending `(,fname . ,pending)))
+      `(call ,fname . ,exp*))
+
+    (define (reduce-if! cnd exp1 exp2 vn vv)
+      (match
+        (cnd)
+
+        (('quote const) =>
+         (if const
+             (reduce-exp! exp1 vn vv)
+             (reduce-exp! exp2 vn vv)))
+
+        (('cons . _) =>
+         (reduce-exp! exp1 vn vv))
+
+        (_ =>
+           `(if ,cnd
+                ,(reduce-exp! exp1 vn vv)
+                ,(reduce-exp! exp2 vn vv)))
+
+        ))
+
+    (define (reduce-xapply args)
+      (match
+        (args)
+
+        ((('quote fname) exp)
+         & (and (symbol? fname)
+                (splittable-exp? exp)) =>
+         (make-xcall fname (split-exp exp)))
+
+        (_ => `(xapply . ,args))
+
+        ))
+
+    (define (splittable-exp? exp)
+      (select
+        (exp)
+
+        (('quote c) =>
+         (list? c))
+
+        (('cons exp1 exp2) =>
+         (splittable-exp? exp2))
+
+        ))
+
+    (define (split-exp exp)
+      (select
+        (exp)
+
+        (('quote c) => (split-quote c))
+
+        (('cons exp1 exp2) => `(,exp1 . ,(split-exp exp2)))
+
+        ))
+
+    (define (split-quote lst)
+      (select
+        (lst)
+
+        (() => '())
+
+        ((c1 . c2) => `((quote ,c1) . ,(split-quote c2)))
+
+        ))
+
+    (define (make-xcall fname exp*)
+      (if (memq fname '(static ifs ifd call xcall))
+          `(xcall ,fname . ,exp*)
+          `(,fname . ,exp*)))
+
+    (define (reduce-car exp)
+      (match
+        (exp)
+
+        (('quote (c1 . c2)) => `(quote ,c1))
+
+        (('cons e1 e2) => e1)
+
+        (_ => `(car ,exp))
+
+        ))
+
+    (define (reduce-cdr exp)
+      (match
+        (exp)
+
+        (('quote (c1 . c2)) => `(quote ,c2))
+
+        (('cons e1 e2) => e2)
+
+        (_ => `(cdr ,exp))
+
+        ))
+
+    (define (reduce-pair? exp)
+      (match
+        (exp)
+
+        (('quote c1) => `(quote ,(pair? c1)))
+
+        (('cons e1 e2) => ''#t)
+
+        (_ => `(pair? ,exp))
+
+        ))
+
+    (define (reduce-cons exp1 exp2)
+      (match
+        (exp1 exp2)
+
+        (('quote c1) ('quote c2) =>
+         `(quote ,(cons c1 c2)))
+
+        (_ _ => `(cons ,exp1 ,exp2))
+
+        ))
+
+    (define (reduce-1-op name proc exp)
+      (match
+        (exp)
+
+        (('quote c) => `(quote ,(proc c)))
+
+        (_ => `(,name ,exp))
+
+        ))
+
+    (define (reduce-2-op name proc exp1 exp2)
+      (match
+        (exp1 exp2)
+
+        (('quote c1) ('quote c2) =>
+         `(quote ,(proc c1 c2)))
+
+        (_ _ => `(,name ,exp1 ,exp2))
+
+        ))
+
+    ;;
+    ;; Returns #t iff there is an expression in "vv" which
+    ;; contains a call or is a large expression, and the variable
+    ;; in the corresponding place in "vn" appears at least twice
+    ;; in a single branch of "exp".
+    ;;
+
+    (define (suspend? vn vv exp)
+      (select
+        (vn vv)
+
+        (() () => #f)
+
+        ((vnhd . vntl) (vvhd . vvtl) =>
+         (or (and (too-large? vvhd)
+                  (> (max-occurrences vnhd exp) 1))
+             (suspend? vntl vvtl exp)))
+
+        ))
+
+    ;;
+    ;; Tests whether the expression "exp" is too large
+    ;; to be duplicated.
+    ;;
+
+    (define (too-large? exp)
+      (select
+        (exp)
+
+        (_ & (symbol? exp) => #f)
+
+        (('quote c) =>
+         (too-large-constant? c))
+
+        (_ => #t)
+
+        ))
+
+    (define (too-large-constant? c)
+      (match
+        (c)
+
+        ((_ . _) => #t)
+
+        (_ => #f)
+
+        ))
+
+    ;;
+    ;; Returns the maximum number of occurrences of "vname"
+    ;; in any branch of "exp".
+    ;;
+
+    (define (max-occurrences vname exp)
+      (select
+        (exp)
+
+        (_
+          & (symbol? exp) =>
+          (if (eq? vname exp)  1  0))
+
+        (('quote _) => 0)
+
+        (('if exp1 exp2 exp3) =>
+         (let ((n1  (max-occurrences vname exp1))
+               (n2  (max-occurrences vname exp2))
+               (n3  (max-occurrences vname exp3)))
+           (max (+ n1 n2) (+ n1 n3))))
+
+        (('call _ . exp*) =>
+         (max-occurrences* vname exp*))
+
+        (('xcall _ . exp*) =>
+         (max-occurrences* vname exp*))
+
+        ((_ . exp*) =>
+         (max-occurrences* vname exp*))
+
+        ))
+
+    (define (max-occurrences* vname exp*)
+      (foldl-map + 0 (lambda (exp) (max-occurrences vname exp)) exp*))
+
+    ;;
+    ;; Search for "vname" in "vn" and return the corresponding value
+    ;; from "vv".
+    ;;
+
+    (define (lookup-value vname vn vv)
+      (select
+        (vn vv)
+
+        ((vnhd . vntl) (vvhd . vvtl) =>
+         (if (eq? vnhd vname)
+             vvhd
+             (lookup-value vname vntl vvtl)))
+
+        ))
+
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    ;;  (unfold suspend prog)  ;;
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+    (with (( ((goal _ _ _) . _)  prog )
+           )
+          (set! pending `(,goal))
+          (set! out '())
+          (choose-next!)
+          (reverse out)))
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;  (ucgr:main src dst src-prog)  ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  ;;
+  ;; This function calls the Call Graph Analyzer and gets a list
+  ;; of cutpoints (i.e. functions that are not to be unfolded).
+  ;; Then it calls the Call Unfolder, which produces the call
+  ;; reduced program.
+  ;;
+
+  (newline)
+  (display "-- Call Graph Reduction:  ")
+  (display src) (display " -> ") (display dst)
+  (newline) (newline)
+  (display  "Call Graph Analysis") (newline)
+  (let ((DontUnfold  (find-cutpoints src-prog)))
+    (display "Cut Points: ") (newline)
+    (write DontUnfold) (newline)
+    (display "Call Unfolding") (newline)
+    (let ((dst-prog  (unfold DontUnfold src-prog)))
+      (display "-- Done --") (newline)
+      dst-prog)))
+

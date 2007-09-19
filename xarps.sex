@@ -1,0 +1,321 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                 ;;
+;;  File:     xarps.sex                                            ;;
+;;  Project:  the specializer Unmix                                ;;
+;;  Author:   S.A.Romanenko, the Institute for Applied             ;;
+;;            Mathematics, the USSR Acedemy of Sciences,           ;;
+;;            Moscow.                                              ;;
+;;  Created:  5 May 1989                                           ;;
+;;  Revised:  7 December 1989                                      ;;
+;;            10 April 1990                                        ;;
+;;            August 1990                                          ;;
+;;                                                                 ;;
+;;  Contents: The Parameter Splitter of the Arity Raiser           ;;
+;;                                                                 ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                 ;;
+;;           Parameter Splitting and Local Optimization            ;;
+;;                                                                 ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;
+;; Returns a program obtaind by optimizing the program "prog"
+;; with the use of the description "types".
+;;
+
+(define (uarps:optimize prog types)
+
+
+  ;;
+  ;; Splits formal parameters and
+  ;; returns an optimized function definition.
+  ;;
+
+  (define (opt-fundef fundef)
+    (with* (( (fname parlist _ body)  fundef )
+            ( (_ . partypes)  (assq fname types) )
+            ( (new-parlist . exp*)  (split-par* parlist partypes) )
+            ( new-body  (opt-exp body parlist exp*) )
+            )
+           `(,fname ,new-parlist = ,new-body)))
+
+  ;;
+  ;; Splits the arguments in function calls in the expression
+  ;; "exp" and performs some local optimization.
+  ;;
+
+  (define (opt-exp exp vn vv)
+    (select
+      (exp)
+
+      (_ & (symbol? exp) => (lookup-variable exp vn vv))
+
+      (('quote _) => exp)
+
+      (('car exp1) =>
+       (opt-car (opt-exp exp1 vn vv)))
+
+      (('cdr exp1) =>
+       (opt-cdr (opt-exp exp1 vn vv)))
+
+      (('pair? exp1) =>
+       (opt-pair? (opt-exp exp1 vn vv)))
+
+      (('cons exp1 exp2) =>
+       (opt-cons (opt-exp exp1 vn vv)
+                 (opt-exp exp2 vn vv)))
+
+      (('equal? exp1 exp2) =>
+       (opt-equal? (opt-exp exp1 vn vv)
+                   (opt-exp exp2 vn vv)))
+
+      (('if exp1 exp2 exp3) =>
+       (opt-if (opt-exp exp1 vn vv)
+               exp2 exp3 vn vv))
+
+      (('call fname . exp*) =>
+       (with* (( (_ . arg-types)  (assq fname types) )
+               ( exp*  (opt-exp* exp* vn vv) )
+               )
+              `(call ,fname . ,(split-arg* exp* arg-types))))
+
+      (('xcall fname . exp*) =>
+       `(xcall ,fname . ,(opt-exp* exp* vn vv)))
+
+      ((fname . exp*) =>
+       `(,fname . ,(opt-exp* exp* vn vv)))
+
+      ))
+
+  (define (opt-exp* exp* vn vv)
+    (map (lambda (exp) (opt-exp exp vn vv)) exp*))
+
+  (define (opt-car exp)
+    (match
+      (exp)
+
+      (('quote (c1 . c2)) => `(quote ,c1))
+
+      (('cons e1 e2) => e1)
+
+      (_ => `(car ,exp))
+
+      ))
+
+  (define (opt-cdr exp)
+    (match
+      (exp)
+
+      (('quote (c1 . c2)) => `(quote ,c2))
+
+      (('cons e1 e2) => e2)
+
+      (_ => `(cdr ,exp))
+
+      ))
+
+  (define (opt-pair? exp)
+    (match
+      (exp)
+
+      (('quote c) => `(quote ,(pair? c)))
+
+      (('cons e1 e2) => ''#t)
+
+      (_ => `(pair? ,exp))
+
+      ))
+
+  (define (opt-cons exp1 exp2)
+    (match
+      (exp1 exp2)
+
+      (('quote c1) ('quote c2) =>
+       `(quote (,c1 . ,c2)))
+
+      (_ _ => `(cons ,exp1 ,exp2))
+
+      ))
+
+  (define (opt-equal? exp1 exp2)
+    (match
+      (exp1 exp2)
+
+      (('quote c1) ('quote c2) =>
+       `(quote ,(equal? c1 c2)))
+
+      (_ _ => `(equal? ,exp1 ,exp2))
+
+      ))
+
+  (define (opt-if cnd exp1 exp2 vn vv)
+    (match
+      (cnd)
+
+      (('quote c) =>
+       (if c
+           (opt-exp exp1 vn vv)
+           (opt-exp exp2 vn vv)))
+
+      (_ =>
+         `(if ,cnd
+              ,(opt-exp exp1 vn vv)
+              ,(opt-exp exp2 vn vv)))
+
+      ))
+
+  ;;
+  ;; Splits each parameter in the list "par*"
+  ;; according to the corresponding type in "type*".
+  ;;
+
+  (define (split-par* par* type*)
+    (select
+      (par* type*)
+
+      (() () => '(() . ()))
+
+      ((par . r-par*) (type . r-type*) =>
+       (with* (( (names . exp*)  (split-par* r-par* r-type*) )
+               ( (names . exp)   (split-par par type names) )
+               )
+              `(,names . (,exp . ,exp*))))
+
+      ))
+
+  ;;
+  ;; Splits the parameter "par" into a list of new parameters.
+  ;; The new parameters are appended to "names".
+  ;;
+
+  (define (split-par par type names)
+    (if (or (eq? type 'absent)
+            (eq? type 'any))
+        `((,par . ,names) . ,par)
+        (with* (( maxnum  (count-gaps type) )
+                ( names  (gen-new-names par 1 maxnum names) )
+                ( (exp . _)  (type-to-exp names type) )
+                )
+               `(,names . ,exp))))
+
+  ;;
+  ;; Counts "any"-s in "type".
+  ;;
+
+  (define (count-gaps type)
+    (select
+      (type)
+
+      ('absent   => 1)
+      ('any      => 1)
+      (('atom _) => 0)
+      (('cons t1 t2) => (+ (count-gaps t1) (count-gaps t2)))
+
+      ))
+
+  ;;
+  ;; Generates new variable names for the variable "var",
+  ;; "num" being the number of variables to be generated.
+  ;; The new variables are appended to "names".
+  ;;
+
+  (define (gen-new-names var num maxnum names)
+    (if (> num maxnum)
+        names
+        `(,(string->symbol
+             (string-append
+               (symbol->string var)
+               "-$"
+               (number->string num)))
+           . ,(gen-new-names var (+ 1 num) maxnum names))))
+
+  ;;
+  ;; Converts the type "type" to an expression.
+  ;; The gaps in "type" are filled with the first
+  ;; variables from "names".
+  ;; Returns a pair (exp . rest), where "exp" is
+  ;; the expression generated and "rest" is the rest
+  ;; of the list "names".
+  ;;
+
+  (define (type-to-exp names type)
+    (select
+      (type)
+
+      ('absent => names)
+
+      ('any    => names)
+
+      (('atom a) => `((quote ,a) . ,names))
+
+      (('cons t1 t2) =>
+       (with* (( (e1 . names)  (type-to-exp names t1) )
+               ( (e2 . names)  (type-to-exp names t2) )
+               )
+              `(,(opt-cons e1 e2) . ,names)))
+      ))
+
+  ;;
+  ;; Splits each argument in the list "arg*"
+  ;; according to the corresponding type in "type*".
+  ;;
+
+  (define (split-arg* arg* type*)
+    (select
+      (arg* type*)
+
+      (() () => '())
+
+      ((arg . r-arg*)  (type . r-type*) =>
+       (let ((exp*  (split-arg* r-arg* r-type*)))
+         (split-arg arg type exp*)))
+
+      ))
+
+  ;;
+  ;; Splits the argument "arg" into a list of new arguments.
+  ;; The new arguments are appended to "exp*".
+  ;;
+
+  (define (split-arg arg type exp*)
+    (select
+      (type)
+
+      ('absent => `(,arg . ,exp*))
+
+      ('any => `(,arg . ,exp*))
+
+      (('atom _) => exp*)
+
+      (('cons t1 t2) =>
+       (let ((exp*  (split-arg (opt-cdr arg) t2 exp*)))
+         (split-arg (opt-car arg) t1 exp*)))
+
+      ))
+
+  ;;
+  ;; Returns the type bound to "vname" in the environment
+  ;; (vn*,vv*).
+  ;;
+
+  (define (lookup-variable vname vn vv)
+    (select
+      (vn vv)
+
+      (() () => (error "Undefined variable" vname))
+
+      ((vn . nrest) (vv . vrest) =>
+       (if (eq? vname vn)
+           vv
+           (lookup-variable vname nrest vrest)))
+
+      ))
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;  (uarps:optimize prog types)  ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  (map opt-fundef prog))
+

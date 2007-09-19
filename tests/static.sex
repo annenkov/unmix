@@ -1,0 +1,16 @@
+;; File: static.sex
+
+;; This is an example program to test the compiler
+;; from Scheme to Mixwell.
+
+
+(define (xcall x y)
+  (static (generalize x) (ifd y)))
+
+(define (static x y)
+  (if (null? x) x
+      (if (null? y) y
+          (cons (car x)
+                (cons (car y)
+                      (rcall (static (cdr x) (cdr y))))))))
+

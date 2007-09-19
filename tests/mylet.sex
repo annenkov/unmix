@@ -1,0 +1,10 @@
+;; File: MYLET.SEX
+
+(extend-syntax
+  (mylet)
+
+  ((mylet ((var val) ...) exp ...)
+     ((lambda (var ...) exp ...) val ...))
+
+   )
+   

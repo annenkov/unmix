@@ -1,0 +1,133 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                 ;;
+;;  File:     xresfn.s                                             ;;
+;;  Project:  the specializer Unmix                                ;;
+;;  Author:   S.A.Romanenko, the Institute for Applied             ;;
+;;            Mathematics, the USSR Acedemy of Sciences,           ;;
+;;            Moscow.                                              ;;
+;;  Created:  5 May 1989                                           ;;
+;;  Revised:  6 April 1990                                         ;;
+;;            July 1990                                            ;;
+;;            November 1993                                        ;;
+;;                                                                 ;;
+;;  Contents: The Collector of the Residual Function Calls,        ;;
+;;            which is called from the Preprocessor.               ;;
+;;                                                                 ;;
+;;  Synopsis:                                                      ;;
+;;            (collect-residual-functions fundef*)                 ;;
+;;                                                                 ;;
+;;            fundef*   - a list of annotated function             ;;
+;;                        definitions                              ;;
+;;                                                                 ;;
+;;  Description:                                                   ;;
+;;                                                                 ;;
+;;            Returns the list of the names of all functions       ;;
+;;            that are called as residual (with "rcall") in one    ;;
+;;            or more places in the annotated function             ;;
+;;            definitios "fundef".                                 ;;
+;;                                                                 ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;
+;;  Returns the list of the names of all functions that are
+;;  called as residual (with "rcall") in one or more places
+;;  in the d-program.
+;;
+
+(define (uresfn:collect-residual-functions fndef*)
+
+  (define (sep-rf fndef* rf)
+    (select
+      (fndef*)
+
+      (() => '())
+
+      ((fundef . rest) =>
+       (with (( (fn _ _ _ _)  fundef ))
+             (if (memq fn rf)
+                 `(,fn  . ,(sep-rf rest rf))
+                 (sep-rf rest rf))))
+
+      ))
+
+  (define (collect-rf-fndef* fndef* rf)
+    (select
+      (fndef*)
+
+      (() => rf)
+
+      ((fndef . rest) =>
+       (let ((rf  (collect-rf-fndef fndef rf)))
+         (collect-rf-fndef* rest rf)))
+
+      ))
+
+  (define (collect-rf-fndef fndef rf)
+    (with (( (_ _ _ _ body)  fndef ))
+          (collect-rf-exp body rf)))
+
+  ;;
+  ;;  Updates and returns the list of the names of all functions
+  ;;  that are called as residual (with "rcall") in the expression
+  ;;  "exp".
+  ;;
+
+  (define (collect-rf-exp exp rf)
+    (select
+      (exp)
+
+      (vname & (symbol? vname) => rf)
+
+      (('static s-exp) => rf)
+
+      (('ifs exp1 exp2 exp3) =>
+       (let ((rf  (collect-rf-exp exp2 rf)))
+         (collect-rf-exp exp3 rf)))
+
+      (('ifd exp1 exp2 exp3) =>
+       (let* ((rf  (collect-rf-exp exp1 rf))
+              (rf  (collect-rf-exp exp2 rf)))
+         (collect-rf-exp exp3 rf)))
+
+      (('call fn s-exp* d-exp*) =>
+       (collect-rf-exp* d-exp* rf))
+
+      (('rcall fn s-exp* d-exp*) =>
+       (let ((rf  (if (memq fn rf)
+                      rf
+                      `(,fn . ,rf)) ))
+         (collect-rf-exp* d-exp* rf)))
+
+      (('xcall fname . exp*) =>
+       (collect-rf-exp* exp* rf))
+
+      ((op . exp*) =>
+       (collect-rf-exp* exp* rf))
+
+      (_ =>
+         (error "Malformed expression: " exp))
+
+      ))
+
+  (define (collect-rf-exp* exp* rf)
+    (select
+      (exp*)
+
+      (() => rf)
+
+      ((exp . rest) =>
+       (let ((rf  (collect-rf-exp exp rf)))
+         (collect-rf-exp* rest rf)))
+
+      ))
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;  (uresfn:collect-residual-functions fndef*)  ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  (with* (( ((fn _ _ _ _) . _)  fndef* )
+          ( rf  (collect-rf-fndef* fndef* `(,fn)) )
+          )
+         (sep-rf fndef* rf)
+         ))
+
