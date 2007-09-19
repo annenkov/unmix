@@ -164,4 +164,3 @@
   (cdr (assoc x table)))
 
 (define (terminal-symbol? x) (not (pair? x)))
-

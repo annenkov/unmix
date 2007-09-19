@@ -207,4 +207,3 @@
   (and (not (null? lst))
        (or (memq (car lst) (cdr lst))
            (duplicate-symbols? (cdr lst)))))
-

@@ -543,4 +543,3 @@
         (let ((rf  (uresfn:collect-residual-functions d-fundef*)))
           (display "-- Done --") (newline)
           `(,rf ,d-fundef* ,s-fundef*))))
-

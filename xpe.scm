@@ -138,4 +138,3 @@
   (let ((vvtl (cdr vv)) (vvhd (car vv)) (vntl (cdr vn)) (vnhd (car vn)))
     (if (eq? vnhd vname) vvhd ($lookup-value vname vntl vvtl))))
 
-

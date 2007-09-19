@@ -183,4 +183,3 @@
         (if (eq? vname vn) vv (lookup-variable vname nrest vrest)))))
   (map opt-fundef prog))
 
-

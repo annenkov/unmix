@@ -74,4 +74,3 @@
 
 (define (func-qq x)
   `(,x ,@x `(,x ,@x ,,x ,(,@x))))
-

@@ -13,4 +13,3 @@
           (cons (car x)
                 (cons (car y)
                       (rcall (static (cdr x) (cdr y))))))))
-

@@ -46,4 +46,3 @@
     (let ((%%119 (collect-rf-fndef* fndef* `(,fn))))
       (let ((rf %%119)) (sep-rf fndef* rf)))))
 
-

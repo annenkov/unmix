@@ -213,4 +213,3 @@
         ((eqv? char (string-ref str n))  n)
         (else
           (loop (+ n 1)))))))
-

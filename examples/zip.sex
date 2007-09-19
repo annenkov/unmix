@@ -10,4 +10,3 @@
         ((null? y) x)
         (else
           `(,(car x) ,(car y) . ,(zipper (cdr x) (cdr y))))))
-

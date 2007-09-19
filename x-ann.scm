@@ -17,4 +17,3 @@
            `(if ,(cadr x) (begin unquote (cddr x))))
           (else (error "when: invalid syntax " x)))))
 
-

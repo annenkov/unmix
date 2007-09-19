@@ -555,4 +555,3 @@ This construct is used for telling the specializer that the result of
 specializing (GENERALIZE exp) must be dynamic even if exp is static. In
 all other respects this construct is equivalent to exp.
 
-

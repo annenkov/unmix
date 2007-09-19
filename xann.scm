@@ -156,4 +156,3 @@
         (let ((rf-names %%43))
           `(,rf-names ,d-fndef* ,s-fndef*))))))
 
-

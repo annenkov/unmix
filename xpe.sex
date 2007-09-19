@@ -331,4 +331,3 @@
         (if (eq? vnhd vname)
             vvhd
             ($lookup-value vname vntl vvtl))))
-
