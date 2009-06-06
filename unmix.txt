@@ -1,7 +1,7 @@
 
 
                          THE SPECIALIZER UNMIX
-			   (for SCM Scheme)
+                           (for SCM Scheme)
 
                           Sergei A.Romanenko
 

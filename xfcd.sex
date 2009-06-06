@@ -144,8 +144,8 @@
       ((call? . fname_exp*)
        & (memq call? '(call rcall)) =>
        (with* (( (fname . exp*) fname_exp* )
-	       ( (_ fargs . fres)  (assq fname meta-confs) ))
-	      fres))
+               ( (_ fargs . fres)  (assq fname meta-confs) ))
+              fres))
 
       (('xcall fname . exp*) =>
        (lub-list (abstract-eval* exp* vn vv)))

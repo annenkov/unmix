@@ -477,14 +477,14 @@
 
         ((&call . _)
          & (memq &call '(call rcall)) =>
-	 (with (( (_ fname s-exp* d-exp*) exp ))
-	       (select
-		(trace)
-		(() 
-		 => (set-car! exp 'rcall))
-		((num . trace-rest)
-		 => (mark-dc! (list-ref d-exp* num) trace-rest))
-		)))
+         (with (( (_ fname s-exp* d-exp*) exp ))
+               (select
+                (trace)
+                (() 
+                 => (set-car! exp 'rcall))
+                ((num . trace-rest)
+                 => (mark-dc! (list-ref d-exp* num) trace-rest))
+                )))
 
         (('xcall fname . exp*) =>
          (with (( (num . trace-rest)  trace )

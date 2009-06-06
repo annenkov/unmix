@@ -149,18 +149,18 @@
       ((call? . _)
        & (memq call? '(call rcall)) =>
        (with*
-	(( (_ fn . exp*) exp ) 
-	 ( (fargs . fres)  (lookup-function-description fn mc) ))
-	(if (eq? fres 's)
-	    `(,exp . s)
-	    (with*
-	     (( (s-exp* . d-exp*)   (sep-sd exp* fargs) )
-	      ( (ann-d-exp* . ind*) (annotate-exp* d-exp* vn vv mc) )
-	      )
-	     `((,call? ,fn
-		       ,s-exp*
-		       ,(protect-static-exp* ann-d-exp* ind*))
-	       . d)))))
+        (( (_ fn . exp*) exp ) 
+         ( (fargs . fres)  (lookup-function-description fn mc) ))
+        (if (eq? fres 's)
+            `(,exp . s)
+            (with*
+             (( (s-exp* . d-exp*)   (sep-sd exp* fargs) )
+              ( (ann-d-exp* . ind*) (annotate-exp* d-exp* vn vv mc) )
+              )
+             `((,call? ,fn
+                       ,s-exp*
+                       ,(protect-static-exp* ann-d-exp* ind*))
+               . d)))))
 
       (('xcall fname . exp*) =>
        (with*

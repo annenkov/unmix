@@ -49,8 +49,8 @@
 
       ((&call . fname_exp*)
        & (memq &call '(call rcall xcall)) =>
-	(with (( (fname . exp*) fname_exp* ))
-	       `(,&call ,fname . ,(map rem-let-exp exp*))))
+        (with (( (fname . exp*) fname_exp* ))
+               `(,&call ,fname . ,(map rem-let-exp exp*))))
 
       ((op . exp*) =>
        `(,op . ,(map rem-let-exp exp*)))
@@ -127,8 +127,8 @@
 
       ((&call . fname_exp*)
        & (memq &call '(call rcall xcall)) =>
-       (with (( (fname . exp*) fname_exp* ))	
-	     `(,&call ,fname . ,(substitute* exp* varenv))))
+       (with (( (fname . exp*) fname_exp* ))        
+             `(,&call ,fname . ,(substitute* exp* varenv))))
 
       ((op . exp*) =>
        `(,op . ,(substitute* exp* varenv)))
@@ -183,7 +183,7 @@
       ((&call . fname_exp*)
        & (memq &call '(call rcall xcall)) =>
        (with (( (fname . exp*) fname_exp* ))
-	     (max-occurrences* vname exp*)))
+             (max-occurrences* vname exp*)))
 
       ((op . exp*) =>
        (max-occurrences* vname exp*))
@@ -287,8 +287,8 @@
 
         ((&call . fname_exp*)
          & (memq &call '(call rcall xcall)) =>
-	 (with (( (fname . exp*) fname_exp* ))
-	       `(,&call ,fname . ,(map cut-let-exp! exp*))))
+         (with (( (fname . exp*) fname_exp* ))
+               `(,&call ,fname . ,(map cut-let-exp! exp*))))
 
         ((op . exp*) =>
          `(,op . ,(map cut-let-exp! exp*)))
@@ -331,7 +331,7 @@
       ((&call . fname_exp*)
        & (memq &call '(call rcall xcall)) =>
        (with (( (fname . exp*) fname_exp* ))
-	     (free-vars* exp* free bound)))
+             (free-vars* exp* free bound)))
 
       ((op . exp*) =>
        (free-vars* exp* free bound))
