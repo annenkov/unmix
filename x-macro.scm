@@ -64,7 +64,7 @@
              (pair? (cddr form))
              (null? (cdddr form)))
         (let ((sym (cadr form))
-              (proc (eval (ux:macroexpand (caddr form)))))
+              (proc (eval-t (ux:macroexpand (caddr form)))))
           (ux:install-macro sym proc))
         (error "Ill-formed MACRO form"))
     #f))

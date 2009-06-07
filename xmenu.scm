@@ -91,7 +91,7 @@
       ((C) (ux:cmp:main) (uio:pause) (ux:main))
       ((V)
         (display "Enter an expression:") (newline)
-        (let ((result (eval (read))))
+        (let ((result (eval-t (read))))
           (do () ((not (char-ready?))) (read-char))
           (newline)(write result)
           (uio:pause)

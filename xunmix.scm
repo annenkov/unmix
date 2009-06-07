@@ -16,7 +16,10 @@
 
 (display "Loading Unmix")(newline)
 
-(require 'pretty-print)
+;(require 'pretty-print)
+(use-modules (ice-9 pretty-print))
+
+(read-enable 'case-insensitive)
 
 (define (ux:load file)
   (load (string-append **unmix-path** file ".scm")))

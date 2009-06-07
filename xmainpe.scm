@@ -101,7 +101,7 @@
       (let ((fname/proc (assq fname proc-list)))
         (if fname/proc
           (apply (cdr fname/proc) args)
-          (let ((proc (eval fname)))
+          (let ((proc (eval-t fname)))
             (set! proc-list `((,fname unquote proc) unquote proc-list))
             (apply proc args)))))))
 

@@ -207,3 +207,8 @@
   (and (not (null? lst))
        (or (memq (car lst) (cdr lst))
            (duplicate-symbols? (cdr lst)))))
+
+;; eval-t at the top level (for Guile)
+
+(define (eval-t x)
+  (eval x (interaction-environment)))
