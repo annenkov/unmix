@@ -59,20 +59,20 @@
          (or (f (car lst))
              (loop (cdr lst))))))
 
-(define (foldl f u lst)
-  (let loop ((u u) (lst lst))
-    (if (null? lst)
-        u
-        (loop (f u (car lst)) (cdr lst)))))
+;;(define (foldl f u lst)
+;;  (let loop ((u u) (lst lst))
+;;    (if (null? lst)
+;;        u
+;;        (loop (f u (car lst)) (cdr lst)))))
 
-(define (foldl1 f lst)
-  (cond
-    ((null? lst)
-     (error "foldl1: empty argument list:" lst))
-    ((null? (cdr lst))
-     (car lst))
-    (else
-      (foldl f (car lst) (cdr lst)))))
+;;(define (foldl1 f lst)
+;;  (cond
+;;    ((null? lst)
+;;     (error "foldl1: empty argument list:" lst))
+;;    ((null? (cdr lst))
+;;     (car lst))
+;;    (else
+;;      (foldl f (car lst) (cdr lst)))))
 
 ;;(define (foldr f u lst)
 ;;  (let loop ((lst lst))
