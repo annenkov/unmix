@@ -1,3 +1,6 @@
+#lang racket
+;(require )
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;                                                                 ;;
 ;;  File:     xio.scm                                              ;;
@@ -14,6 +17,10 @@
 ;;                                                                 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+;; Screen size
+
+(define *ux:screen-height* 24)
+(define *ux:screen-width*  80)
 
 ;; Clears the screen.
 
@@ -70,7 +77,7 @@
 (define (uio:query msg lst)
   (do () ((not (char-ready?))) (read-char))
   (let loop ()
-    (if (not (null? msg))
+    (when (not (null? msg))
         (begin (display msg) (display ": ")))
     (let ((item (read)))
       (if (member item lst)
@@ -185,7 +192,7 @@
 
 (define (uio:norm-file-name name ext name-ext)
   (let ((len (string-length name-ext)))
-    (if (not (zero? len))
+    (when (not (zero? len))
         (let ((pos (uio:char-pos #\. name-ext)))
           (cond
             ((not pos) (set! name name-ext))
@@ -213,3 +220,5 @@
         ((eqv? char (string-ref str n))  n)
         (else
           (loop (+ n 1)))))))
+
+(provide (all-defined-out))

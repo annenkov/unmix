@@ -1,3 +1,6 @@
+#lang racket
+(require racket/mpair)
+
 (define (uarta:analyze-argument-types prog)
   (define types #f)
   (define types-modified? #f)
@@ -93,9 +96,9 @@
         (let ((args1 (cdr fdescr)))
           (let ((%%90 (lub* args args1)))
             (let ((lub-args %%90))
-              (if (not (equal? lub-args args1))
+              (when (not (equal? lub-args args1))
                 (begin
-                  (set-cdr! fdescr lub-args)
+                  (set-mcdr! fdescr lub-args)
                   (set! types-modified? #t)))))))))
   (define (lookup-variable vname vn vv)
     (if (and (null? vn) (null? vv))
@@ -109,3 +112,5 @@
     (collect-args-prog!)
     (if types-modified? (recalc-types!) types)))
 
+
+(provide (all-defined-out))

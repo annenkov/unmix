@@ -1,3 +1,8 @@
+#lang racket
+(require "xarta.scm"
+         "xaraa.scm"
+         "xarps.scm")
+
 (define (uar:main src dst prog)
   (define types #f)
   (define (print-types types) (write (form-types types)) (newline))
@@ -23,30 +28,32 @@
   (newline)
   (display "Analysis of the Argument Types")
   (newline)
-  (ux:load "xarta")
   (display "Iterations: ")
   (set! types (uarta:analyze-argument-types prog))
-  (set! uarta:analyze-argument-types #f)
+  ; TODO Check later
+  ;(set! uarta:analyze-argument-types #f)
   (newline)
   (display "Structure of Arguments:")
   (newline)
   (print-types types)
   (display "Analysis of the Parameter Accesses")
-  (newline)
-  (ux:load "xaraa")
+  (newline)  
   (display "Iterations: ")
   (uaraa:analyze-parameter-access! prog types)
-  (set! uaraa:analyze-parameter-access! #f)
+  ; TODO Check later
+  ;(set! uaraa:analyze-parameter-access! #f)
   (newline)
   (display "Structure of Arguments:")
   (newline)
   (print-types types)
   (display "Splitting of Parameters")
   (newline)
-  (ux:load "xarps")
   (set! prog (uarps:optimize prog types))
-  (set! uarps:optimize #f)
+  ; TODO Check later
+  ;(set! uarps:optimize #f)
   (display "-- Done --")
   (newline)
   prog)
 
+
+(provide (all-defined-out))

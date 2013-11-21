@@ -1,3 +1,7 @@
+#lang racket
+(require "xresfn.scm"
+         "x-misc.scm")
+
 (define (uann:make-annotated-program mw-prog mc)
   (define (annotate-fndef* fndef* mc)
     (if (null? fndef*)
@@ -139,7 +143,7 @@
   (define (lub-list ind*)
     (if (memq 'd ind*) 'd 's))
   (define (lookup-function-description fname mc)
-    (cdr (assq fname mc)))
+    (cdr (assq fname (mpairs->pairs mc))))
   (define (lookup-variable vname vn* vv*)
     (if (and (null? vn*) (null? vv*))
       (error "Undefined variable: " vname)
@@ -156,3 +160,4 @@
         (let ((rf-names %%43))
           `(,rf-names ,d-fndef* ,s-fndef*))))))
 
+(provide (all-defined-out))

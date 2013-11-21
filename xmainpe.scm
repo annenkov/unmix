@@ -1,3 +1,8 @@
+#lang racket
+(require racket/mpair)
+(require "xpe.scm"
+         "xggg.scm")
+
 (define (umainpe:generate-residual-program o-file ann-prog goalsvv)
   (define o-port #f)
   (define pending #f)
@@ -61,7 +66,7 @@
           ((equal? (car exp) 'call)
            (let ((exp* (cddr exp)) (conf (cadr exp)))
              (for-each update! exp*)
-             (set-car! (cdr exp) (find-name! conf))))
+             (set-mcar! (cdr exp) (find-name! conf))))
           ((equal? (car exp) 'xcall)
            (let ((exp* (cddr exp)) (fname (cadr exp)))
              (for-each update! exp*)))
@@ -70,7 +75,7 @@
   (define (find-name! conf)
     (let ((%%126 (assoc conf names)))
       (let ((conf-descr %%126) (fname (car conf)))
-        (if (not conf-descr)
+        (when (not conf-descr)
           (begin
             (set! conf-descr `(,conf unquote (make-fname! fname)))
             (set! names `(,conf-descr unquote names))
@@ -86,7 +91,7 @@
     (let ((fname-descr (assq fname counts)))
       (if fname-descr
         (let ((count (+ 1 (cdr fname-descr))))
-          (set-cdr! fname-descr count)
+          (set-mcdr! fname-descr count)
           count)
         (begin (set! counts `((,fname . 1) unquote counts)) 1))))
   (set! o-port (open-output-file o-file))
@@ -95,13 +100,4 @@
     (generate-residual-program-pe))
   (close-output-port o-port))
 
-(define xapply
-  (let ((proc-list '()))
-    (lambda (fname args)
-      (let ((fname/proc (assq fname proc-list)))
-        (if fname/proc
-          (apply (cdr fname/proc) args)
-          (let ((proc (eval-t fname)))
-            (set! proc-list `((,fname unquote proc) unquote proc-list))
-            (apply proc args)))))))
-
+(provide (all-defined-out))

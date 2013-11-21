@@ -1,43 +1,48 @@
+#lang racket
+(require racket/mpair)
+(require "xresfn.scm"
+         "x-misc.scm")
+
 (define (upiu:prevent-infinite-unfolding! prog)
   (define (find-loops-prog rf prog)
     (define loops #f)
     (define (find-loops-func fname)
-      (let ((%%1 (assq fname prog)))
-        (let ((body (car (cddddr %%1))))
+      (let ((%%1 (massq fname prog)))
+        (let ((body (mcar (mcddddr %%1))))
           (find-loops body fname '() (list fname) '()))))
     (define (find-loops exp fn trace fn-path path)
       (cond ((symbol? exp) #f)
-            ((equal? (car exp) 'static)
-             (let ((exp1 (cadr exp))) #f))
-            ((equal? (car exp) 'ifs)
-             (let ((exp* (cddr exp)) (exp0 (cadr exp)))
+            ((equal? (mcar exp) 'static)
+             (let ((exp1 (mcadr exp))) #f))
+            ((equal? (mcar exp) 'ifs)
+             (let ((exp* (mcddr exp)) (exp0 (mcadr exp)))
                (find-loops* exp* 1 fn trace fn-path path)))
-            ((equal? (car exp) 'ifd)
-             (let ((exp* (cdr exp)))
+            ((equal? (mcar exp) 'ifd)
+             (let ((exp* (mcdr exp)))
                (find-loops* exp* 0 fn trace fn-path path)))
-            ((equal? (car exp) 'call)
-             (let ((d-exp* (cadddr exp))
-                   (s-exp* (caddr exp))
-                   (fname (cadr exp)))
+            ((equal? (mcar exp) 'call)
+             (let ((d-exp* (mcadddr exp))
+                   (s-exp* (mcaddr exp))
+                   (fname (mcadr exp)))
                (find-loops* d-exp* 0 fn trace fn-path path)
                (if (memq fname fn-path)
                  (record-loop fname fn trace path)
                  (visit-function fname fn trace fn-path path))))
-            ((equal? (car exp) 'rcall)
-             (let ((d-exp* (cadddr exp))
-                   (s-exp* (caddr exp))
-                   (fname (cadr exp)))
+            ((equal? (mcar exp) 'rcall)
+             (let ((d-exp* (mcadddr exp))
+                   (s-exp* (mcaddr exp))
+                   (fname (mcadr exp)))
                (find-loops* d-exp* 0 fn trace fn-path path)))
-            ((equal? (car exp) 'xcall)
-             (let ((exp* (cddr exp)) (fname (cadr exp)))
+            ((equal? (mcar exp) 'xcall)
+             (let ((exp* (mcddr exp)) (fname (mcadr exp)))
                (find-loops* exp* 0 fn trace fn-path path)))
             (else
-             (let ((exp* (cdr exp)) (op (car exp)))
+             (let ((exp* (mcdr exp)) (op (mcar exp)))
                (find-loops* exp* 0 fn trace fn-path path)))))
     (define (find-loops* exp* num fn trace fn-path path)
       (if (null? exp*)
         #f
-        (let ((rest (cdr exp*)) (exp (car exp*)))
+        (let ((rest (mcdr exp*)) (exp (mcar exp*)))
           (find-loops
             exp
             fn
@@ -59,7 +64,7 @@
                   fname
                   `((,fn unquote trace) unquote path)
                   '()))))
-        (if (not (member new-loop loops))
+        (when (not (member new-loop loops))
           (begin (set! loops `(,new-loop unquote loops))))))
     (define (extract-loop fname path loop)
       (let ((path-rest (cdr path))
@@ -71,8 +76,8 @@
               loop
               (extract-loop fname path-rest loop))))))
     (define (visit-function fname fn trace fn-path path)
-      (let ((%%3 (assq fname prog)))
-        (let ((body (car (cddddr %%3))))
+      (let ((%%3 (massq fname prog)))
+        (let ((body (mcar (mcddddr %%3))))
           (find-loops
             body
             fname
@@ -97,10 +102,10 @@
       (let ((path-rest (cdr path))
             (trace (cdar path))
             (fname (caar path)))
-        (let ((%%4 (assq fname prog)))
-          (let ((body (car (cddddr %%4)))
-                (dvn (caddr %%4))
-                (svn (cadr %%4)))
+        (let ((%%4 (massq fname prog)))
+          (let ((body (mcar (mcddddr %%4)))
+                (dvn (mcaddr %%4))
+                (svn (mcadr %%4)))
             (let ((%%5 (go-through-path
                          body
                          trace
@@ -113,12 +118,12 @@
     (define (go-through-path exp trace path vn vv)
       (cond ((symbol? exp)
              (error "No way in the expression" exp))
-            ((equal? (car exp) 'static)
+            ((equal? (mcar exp) 'static)
              (error "No way in the expression" exp))
-            ((equal? (car exp) 'call)
-             (let ((d-exp* (cadddr exp))
-                   (s-exp* (caddr exp))
-                   (fname (cadr exp)))
+            ((equal? (mcar exp) 'call)
+             (let ((d-exp* (mcadddr exp))
+                   (s-exp* (mcaddr exp))
+                   (fname (mcadr exp)))
                (if (null? trace)
                  (go-through-call
                    fname
@@ -131,10 +136,10 @@
                      path
                      vn
                      vv)))))
-            ((equal? (car exp) 'rcall)
-             (let ((d-exp* (cadddr exp))
-                   (s-exp* (caddr exp))
-                   (fname (cadr exp)))
+            ((equal? (mcar exp) 'rcall)
+             (let ((d-exp* (mcadddr exp))
+                   (s-exp* (mcaddr exp))
+                   (fname (mcadr exp)))
                (let ((trace-rest (cdr trace)) (num (car trace)))
                  (go-through-path
                    (list-ref d-exp* num)
@@ -142,8 +147,8 @@
                    path
                    vn
                    vv))))
-            ((equal? (car exp) 'xcall)
-             (let ((exp* (cddr exp)) (fname (cadr exp)))
+            ((equal? (mcar exp) 'xcall)
+             (let ((exp* (mcddr exp)) (fname (mcadr exp)))
                (let ((trace-rest (cdr trace)) (num (car trace)))
                  (go-through-path
                    (list-ref exp* num)
@@ -152,10 +157,10 @@
                    vn
                    vv))))
             (else
-             (let ((exp* (cdr exp)) (op (car exp)))
+             (let ((exp* (mcdr exp)) (op (mcar exp)))
                (let ((trace-rest (cdr trace)) (num (car trace)))
                  (go-through-path
-                   (list-ref exp* num)
+                   (mlist-ref exp* num)
                    trace-rest
                    path
                    vn
@@ -179,7 +184,7 @@
                (decr-eval-sel (decr-eval (car exp*) vn vv))))
             (else 'any)))
     (define (decr-eval* exp* vn vv)
-      (map (lambda (exp) (decr-eval exp vn vv)) exp*))
+      (map (lambda (exp) (decr-eval exp vn vv)) (mpairs->pairs exp*)))
     (define (decr-eval-sel a-value)
       (cond ((equal? a-value 'any) 'any)
             ((equal? (car a-value) 'lt)
@@ -188,7 +193,7 @@
              (let ((vname (cdr a-value))) `(lt unquote vname)))
             (else (error "SELECT: no match for" a-value))))
     (define (make-le vn)
-      (map (lambda (vname) `(le unquote vname)) vn))
+      (map (lambda (vname) `(le unquote vname)) (mpairs->pairs vn)))
     (define (all-non-increasing? vn vv)
       (if (and (null? vn) (null? vv))
         #t
@@ -207,22 +212,24 @@
                         (all-non-increasing? vn-rest vv-rest))))
                 (else (error "SELECT: no match for" vvalue))))))
     (define (some-decreasing? vv)
-      (or-map
+      (ormap
         (lambda (vvalue)
           (cond ((equal? (car vvalue) 'lt) #t)
                 ((equal? (car vvalue) 'le) #f)
                 (else (error "SELECT: no match for" vvalue))))
         vv))
-    (define (lookup-variable vname vn vv)
-      (if (and (null? vn) (null? vv))
+    (define (lookup-variable vname vn* vv*)
+      (if (and (null? vn*) (null? vv*))
         (error "Undefined variable: " vname)
-        (let ((vrest (cdr vv))
-              (vv (car vv))
-              (nrest (cdr vn))
-              (vn (car vn)))
+        (let* ((vv (mpairs->pairs vv*))
+               (vrest (cdr vv))
+               (vv (car vv))
+               (vn (mpairs->pairs vn*))
+               (nrest (cdr vn))
+               (vn (car vn)))
           (if (eq? vname vn)
-            vv
-            (lookup-variable vname nrest vrest)))))
+              vv
+              (lookup-variable vname nrest vrest)))))
     (set! dangerous-calls '())
     (for-each collect-in-fundef loops)
     dangerous-calls)
@@ -234,17 +241,17 @@
     (define (mark-dc! exp trace)
       (cond ((symbol? exp)
              (error "No way in the expression: " exp))
-            ((equal? (car exp) 'static)
-             (let ((exp1 (cadr exp)))
+            ((equal? (mcar exp) 'static)
+             (let ((exp1 (mcadr exp)))
                (error "No way in the expression: " exp)))
-            ((let ((&call (car exp)))
+            ((let ((&call (mcar exp)))
                (memq &call '(call rcall)))
-             (let ((&call (car exp)))
+             (let ((&call (mcar exp)))
                (let ((d-exp* (cadddr exp))
                      (s-exp* (caddr exp))
                      (fname (cadr exp)))
                  (if (null? trace)
-                   (set-car! exp 'rcall)
+                   (set-mcar! exp 'rcall)
                    (let ((trace-rest (cdr trace)) (num (car trace)))
                      (mark-dc! (list-ref d-exp* num) trace-rest))))))
             ((equal? (car exp) 'xcall)
@@ -263,7 +270,7 @@
   (display "Preventing Infinite Unfolding")
   (newline)
   (let ((s-fundef* (caddr prog))
-        (d-fundef* (cadr prog))
+        (d-fundef* (pairs->mpairs (cadr prog))) ; converting to mutable
         (rf (car prog)))
     (display "Finding Loops")
     (newline)
@@ -282,3 +289,5 @@
         (newline)
         `(,rf ,d-fundef* ,s-fundef*)))))
 
+
+(provide (all-defined-out))

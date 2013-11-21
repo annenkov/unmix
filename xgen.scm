@@ -1,3 +1,15 @@
+#lang racket
+(require "x-misc.scm"
+         "xio.scm"
+         "xmainpe.scm"
+         "xpe.scm"
+         "xsettings.scm"
+         "xggg.scm"
+         "xcgr.scm"
+         "xar.scm"
+         "xcgr.scm"
+         "xensg.scm")
+
 (define (ugen:switch action)
   (define (make-res-filename file-names)
     (if (null? file-names) "RES" (merge-file-names file-names)))
@@ -55,10 +67,11 @@
            (static-inputs (list program)))
       (pe-aux ann-file-name (list ann-file-name) res program static-inputs)))
   (define (generate-residual-program dst program static-inputs)
-    (ux:load "xmainpe")
     (umainpe:generate-residual-program dst program static-inputs)
-    (set! umainpe:generate-residual-program #f)
-    (set! xapply #f))
+    ;TODO check later
+    ;(set! umainpe:generate-residual-program #f)
+    ;(set! xapply #f)
+    )
   (define (pe-aux src data-file-names res program static-inputs)
     (let ((dst (string-append res ".mwr")) (scm (string-append res ".scm")))
       (check-static-inputs program static-inputs)
@@ -72,7 +85,6 @@
       (display " ) -> ")
       (display dst)
       (newline)
-      (ux:load "xpe")
       (generate-residual-program dst program static-inputs)
       (newline)
       (display "Residual program has been written into ")
@@ -81,7 +93,7 @@
       (post-processing dst scm)))
   (define (check-static-inputs prog data)
     (let ((s-fundef* (caddr prog)) (svn (car (cdaadr prog))) (rf (car prog)))
-      (if (not (= (length svn) (length data)))
+      (when (not (= (length svn) (length data)))
         (begin (error "Mismatch in mumber of data files")))))
   (define (run-pepe)
     (newline)
@@ -99,7 +111,6 @@
       (display " ) -> ")
       (display dst)
       (newline)
-      (ux:load "xpe")
       (generate-residual-program dst program static-inputs)
       (newline)
       (display "Residual program generator has been written into ")
@@ -137,8 +148,7 @@
            (res (uio:request-name "Residual program file name " "GENGEN"))
            (dst (string-append res ".mwr"))
            (scm (string-append res ".scm"))
-           (static-inputs (list (uio:file->list ann))))
-      (ux:load "xggg")
+           (static-inputs (list (uio:file->list ann))))      
       (newline)
       (display "Generation of the Residual Program Generator:")
       (newline)
@@ -164,18 +174,18 @@
       (display dst)
       (newline)
       (set! program (uio:file->list src))
-      (ux:load "xcgr")
       (set! program (ucgr:main pgm pgm program))
-      (set! ucgr:main #f)
-      (ux:load "xar")
+      ; TODO Check later
+      ;(set! ucgr:main #f)
       (set! program (uar:main pgm pgm program))
-      (set! uar:main #f)
-      (ux:load "xcgr")
+      ; TODO Check later
+      ;(set! uar:main #f)
       (set! program (ucgr:main pgm pgm program))
-      (set! ucgr:main #f)
-      (ux:load "xensg")
+      ; TODO Check later
+      ;(set! ucgr:main #f)     
       (set! program (uensg:main pgm pgm program))
-      (set! uensg:main #f)
+      ; TODO Check later
+      ;(set! uensg:main #f)
       (uio:list->pp-file dst program 79)
       (newline)
       (display "Target program has been written into ")
@@ -188,3 +198,5 @@
     ((gengen) (run-gengen))
     ((gen) (run-gen))))
 
+
+(provide (all-defined-out))

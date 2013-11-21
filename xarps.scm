@@ -1,3 +1,5 @@
+#lang racket
+
 (define (uarps:optimize prog types)
   (define (opt-fundef fundef)
     (let ((body (cadddr fundef)) (parlist (cadr fundef)) (fname (car fundef)))
@@ -183,3 +185,5 @@
         (if (eq? vname vn) vv (lookup-variable vname nrest vrest)))))
   (map opt-fundef prog))
 
+
+(provide (all-defined-out))

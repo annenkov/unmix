@@ -1,3 +1,5 @@
+#lang racket
+(require scheme/mpair)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;                                                                 ;;
 ;;  File:     xmisc.scm                                            ;;
@@ -137,7 +139,7 @@
   (let loop ((result '()) (lst (reverse lst)))
     (if (null? lst)
         result
-        (loop (append! (f (car lst)) result) (cdr lst)))))
+        (loop (mappend! (f (car lst)) result) (cdr lst)))))
 
 (define (filter p lst)
   (let loop ((result '()) (lst lst))
@@ -167,7 +169,7 @@
       ((p (car lst))
        (loop (cons (car lst) result) (cdr lst)))
       ((and-map p (cdr lst))
-       (append! (reverse result) (cdr lst)))
+       (mappend! (reverse result) (cdr lst)))
       (else
         (error "security-filter: more than one element to delete")))))
 
@@ -208,7 +210,55 @@
        (or (memq (car lst) (cdr lst))
            (duplicate-symbols? (cdr lst)))))
 
-;; eval-t at the top level (for Guile)
+;; eval-t at the top level
+
+(define-namespace-anchor a)
+(define ns (namespace-anchor->namespace a))
 
 (define (eval-t x)
-  (eval x (interaction-environment)))
+  (eval x ns))
+
+;; Handling mutable pairs
+
+(define (pairs->mpairs p)
+  (if (pair? p) 
+      (mcons (pairs->mpairs (car p)) (pairs->mpairs (cdr p)))
+      p))
+
+(define (pair->mpair p)
+  (mcons (car p) (cdr p)))
+
+(define (mcadr p)
+  (mcar (mcdr p)))
+
+(define (mcddr p)
+  (mcdr (mcdr p)))
+
+(define (mpairs->pairs p)
+  (if (mpair? p) 
+      (cons (mpairs->pairs (mcar p)) (mpairs->pairs (mcdr p)))
+      p))
+
+  (define-syntax (provide-combination stx)
+    (syntax-case stx ()
+      [(_ id)
+       (with-syntax ([body
+                      (let loop ([ops (let ([s (symbol->string (syntax-e #'id))])
+                                        (string->list (substring s 1 (sub1 (string-length s)))))])
+                        (if (null? ops)
+                            'x
+                            `(,(if (equal? (car ops) #\a) 'mcar 'mcdr)
+                              ,(loop (cdr ops)))))]
+                     [mid (datum->syntax #'id
+                                         (string->symbol (format "m~a" (syntax-e #'id)))
+                                         #'id)])
+         #'(begin
+             (define mid (lambda (x) body))))]
+      [(_ id ...) #'(begin (provide-combination id) ...)]))
+
+  (provide-combination caaar caadr cadar caddr cdaar cdadr cddar cdddr
+                       caaaar caaadr caadar caaddr cadaar cadadr caddar cadddr
+                       cdaaar cdaadr cdadar cdaddr cddaar cddadr cdddar cddddr)
+
+
+(provide (all-defined-out))

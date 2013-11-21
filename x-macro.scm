@@ -1,3 +1,6 @@
+#lang racket
+(require scheme/mpair)
+(require "x-misc.scm")
 ;;
 ;; File: X-MACRO.scm
 ;;
@@ -36,23 +39,23 @@
 
 (define (ux:install-macro keyword proc)
   (define (lookup-macro sym)
-    (let ((association (assq sym *ux:macro-expanders*)))
-      (if (not association)
+    (let ((association (massq sym *ux:macro-expanders*)))
+      (when (not association)
           (begin
-            (set! association (cons sym #f))
+            (set! association (mcons sym #f))
             (set! *ux:macro-expanders*
-                  (cons association *ux:macro-expanders*))))
+                  (mcons association *ux:macro-expanders*))))
       association))
   (if (and (symbol? keyword) (procedure? proc))
       (let ((association (lookup-macro keyword)))
-        (set-cdr! association proc))
+        (set-mcdr! association proc))
       (error "Ill-formed macro definition" keyword proc)))
 
 ;; The procedure (UX:MACRO? Sym) tells whether the symbol Sym
 ;; is associated with a macro-transformer.
 
 (define (ux:macro? sym)
-  (and (assq sym *ux:macro-expanders*) #t))
+  (and (massq sym *ux:macro-expanders*) #t))
 
 ;; The macro-form (UX:MACRO sym Proc) is equivalent to
 ;; (UX:INSTALL-MACRO 'Sym Proc).
@@ -74,9 +77,9 @@
     ((not (pair? form)) form)
     ((not (symbol? (car form))) form)
     (else
-      (let ((association (assq (car form) *ux:macro-expanders*)))
-        (if (and association (cdr association))
-            ((cdr association) form)
+      (let ((association (massq (car form) *ux:macro-expanders*)))
+        (if (and association (mcdr association))
+            ((mcdr association) form)
             form)))))
 
 (define (ux:macroexpand form)
@@ -85,7 +88,7 @@
     (error "ill-formed form:" form))
 
   (define (check-syntax pat form)
-    (if (not (syntax-match? '() (cdr pat) (cdr form)))
+    (when (not (syntax-match? '() (cdr pat) (cdr form)))
       (ill-formed-form form)))
 
   (define (macroexpand-quasiquote depth exp)
@@ -249,7 +252,7 @@
                 (check-syntax '(OR e ...) form)
                 (gen-or (map ux:macroexpand info)))
               (else
-                (let ((association (assq (car form) *ux:macro-expanders*)))
+                (let ((association (massq (car form) *ux:macro-expanders*)))
                   (if (and association
                            (cdr association))
                       (ux:macroexpand ((cdr association) form))
@@ -280,3 +283,5 @@
     (ux:macroexpand-file sex scm)
     (newline) (display "--- Done ---") (newline)
     ))
+
+(provide (all-defined-out))

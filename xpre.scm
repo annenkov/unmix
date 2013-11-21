@@ -1,3 +1,13 @@
+#lang racket
+(require "xio.scm"
+         "xensg.scm"
+         "xctmw.scm"
+         "xctmwrl.scm"
+         "xresfn.scm"
+         "xsepsd.scm"
+         "xpiu.scm"
+         "xpcd.scm")
+
 (define (upre:switch action)
   (define (run-pre)
     (let* ((src (uio:request-file-name
@@ -53,10 +63,9 @@
                   "scm"))
            (program (uio:file->list src)))
       (set! program
-        (scheme-to-mixwell src pgm program))
-      (ux:load "xensg")
+        (scheme-to-mixwell src pgm program))      
       (set! program (uensg:main pgm dst program))
-      (set! uensg:main #f)
+      ;(set! uensg:main #f)
       (uio:list->pp-file dst program 79)
       (newline)
       (display "Target program has been written into ")
@@ -69,14 +78,15 @@
     (display " -> ")
     (display dst)
     (newline)
-    (ux:load "xctmw")
     (set! prog (uctmw:compile-program prog))
-    (set! uctmw:compile-program #f)
-    (ux:load "xctmwrl")
+    ; TODO check later
+    ;(set! uctmw:compile-program #f)
     (set! prog (uctmwrl:rem-let-prog prog))
-    (set! uctmwrl:rem-let-prog #f)
+    ; TODO check later
+    ;(set! uctmwrl:rem-let-prog #f)
     (set! prog (uctmwrl:cut-let-prog prog))
-    (set! uctmwrl:cut-let-prog #f)
+    ; TODO check later
+    ;(set! uctmwrl:cut-let-prog #f)
     (display "-- Done --")
     (newline)
     prog)
@@ -104,22 +114,21 @@
     (display dst)
     (newline)
     (newline)
-    (ux:load "xresfn")
-    (ux:load "xsepsd")
     (set! program
       (usepsd:unmix-static-and-dynamic program descr))
-    (set! usepsd:unmix-static-and-dynamic #f)
+    ; TODO check later
+    ;(set! usepsd:unmix-static-and-dynamic #f)
     (newline)
-    (ux:load "xpiu")
     (set! program
       (upiu:prevent-infinite-unfolding! program))
-    (set! upiu:prevent-infinite-unfolding! #f)
+    ; TODO check later
+    ;(set! upiu:prevent-infinite-unfolding! #f)
     (newline)
-    (ux:load "xpcd")
     (set! program
       (upcd:prevent-call-duplication! program))
-    (set! upcd:prevent-call-duplication! #f)
-    (set! uresfn:collect-residual-functions #f)
+    ; TODO check later
+    ;(set! upcd:prevent-call-duplication! #f)
+    ;(set! uresfn:collect-residual-functions #f)
     program)
   (define (request-descr)
     (map (lambda (x)
@@ -128,22 +137,22 @@
          (string->list
            (uio:request-string "Parameter description: "))))
   (define (check-descr mw-prog descr)
-    (if (not (is-sd-list? descr))
+    (when (not (is-sd-list? descr))
       (begin
         (error "Malformed description of the input parameters"
                descr)))
     (let ((- (cdr mw-prog)) (parlist (cadar mw-prog)))
-      (if (not (eqv? (length parlist) (length descr)))
+      (when (not (eqv? (length parlist) (length descr)))
         (begin
           (error "Incorrect number of indicators in the description"
                  descr))))
-    (if (not (memq 'd descr))
+    (when (not (memq 'd descr))
       (begin
         (error "No \"d\" in the description of the input parameters"
                descr)))
     'ok)
   (define (is-sd-list? descr)
-    (and-map
+    (andmap
       (lambda (item) (memq item '(s d)))
       descr))
   (define (write-ann-prog dst ann-prog)
@@ -169,3 +178,4 @@
     ((rmm) (run-rmm))
     ((ann) (run-ann))))
 
+(provide (all-defined-out))

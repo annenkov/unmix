@@ -1,3 +1,7 @@
+#lang racket
+(require "x-misc.scm"
+         "x-macro.scm"
+         "x-synt.scm")
 (define (%*gen-let-vars*% args)
   (map (lambda (arg) (if (symbol? arg) arg (ux:gentemp))) args))
 
@@ -17,7 +21,7 @@
   (lambda (x)
     (cond ((syntax-match? '(match) '(match (arg ...) clause ...) x)
            (let ((%%4 (%*gen-let-vars*% (cadr x))))
-             (if (not (syntax-match? '() '(var ...) %%4))
+             (when (not (syntax-match? '() '(var ...) %%4))
                (error "match: 'with' pattern does not fit the argument"
                       '(var ...)
                       %%4))
@@ -191,7 +195,7 @@
   (lambda (x)
     (cond ((syntax-match? '(with%) '(with% ((pat arg) ...) exp ...) x)
            (let ((%%23 (%*gen-let-vars*% (map cadr (cadr x)))))
-             (if (not (syntax-match? '() '(var ...) %%23))
+             (when (not (syntax-match? '() '(var ...) %%23))
                (error "with%: 'with' pattern does not fit the argument"
                       '(var ...)
                       %%23))
@@ -294,7 +298,7 @@
   (lambda (x)
     (cond ((syntax-match? '(select) '(select (arg ...) clause ...) x)
            (let ((%%35 (%*gen-let-vars*% (cadr x))))
-             (if (not (syntax-match? '() '(var ...) %%35))
+             (when (not (syntax-match? '() '(var ...) %%35))
                (error "select: 'with' pattern does not fit the argument"
                       '(var ...)
                       %%35))

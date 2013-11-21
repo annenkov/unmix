@@ -1,3 +1,7 @@
+#lang racket
+
+(require "x-misc.scm")
+
 (define (ucgr:main src dst src-prog)
   (define (find-cutpoints prog)
     (define visited-funcs #f)
@@ -5,7 +9,7 @@
     (define (visit! fcn path)
       (let ((%%91 (assq fcn prog)))
         (let ((body (cadddr %%91)))
-          (if (not (memq fcn visited-funcs))
+          (when (not (memq fcn visited-funcs))
             (begin (set! visited-funcs `(,fcn unquote visited-funcs))))
           (find-cycles! body `(,fcn unquote path)))))
     (define (find-cycles! exp path)
@@ -14,7 +18,7 @@
             ((equal? (car exp) 'call)
              (let ((exp* (cddr exp)) (fname (cadr exp)))
                (cond ((memq fname path)
-                      (if (not (memq fname cutpoints))
+                      (when (not (memq fname cutpoints))
                         (begin (set! cutpoints `(,fname unquote cutpoints))))
                       (find-cycles*! exp* path))
                      ((memq fname visited-funcs) (find-cycles*! exp* path))
@@ -35,7 +39,7 @@
     (define current #f)
     (define out #f)
     (define (choose-next!)
-      (if (not (null? pending))
+      (when (not (null? pending))
         (begin
           (set! current (car pending))
           (set! pending (cdr pending))
@@ -112,7 +116,7 @@
     (define (reduce-exp*! exp* vn vv)
       (map (lambda (exp) (reduce-exp! exp vn vv)) exp*))
     (define (reduce-call! fname exp*)
-      (if (and (not (assq fname out))
+      (when (and (not (assq fname out))
                (not (eq? fname current))
                (not (memq fname pending)))
         (begin (set! pending `(,fname unquote pending))))
@@ -289,3 +293,5 @@
       (newline)
       dst-prog)))
 
+
+(provide (all-defined-out))

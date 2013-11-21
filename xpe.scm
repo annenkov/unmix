@@ -1,3 +1,6 @@
+#lang racket
+(require "x-misc.scm")
+
 (define ($specialize-fundef ann-prog conf)
   (let ((s-prog (caddr ann-prog)) (d-prog (cadr ann-prog)) (rf (car ann-prog)))
     (if (null? conf)
@@ -138,3 +141,14 @@
   (let ((vvtl (cdr vv)) (vvhd (car vv)) (vntl (cdr vn)) (vnhd (car vn)))
     (if (eq? vnhd vname) vvhd ($lookup-value vname vntl vvtl))))
 
+(define xapply
+  (let ((proc-list '()))
+    (lambda (fname args)
+      (let ((fname/proc (assq fname proc-list)))
+        (if fname/proc
+          (apply (cdr fname/proc) args)
+          (let ((proc (eval-t fname)))
+            (set! proc-list `((,fname unquote proc) unquote proc-list))
+            (apply proc args)))))))
+
+(provide (all-defined-out))

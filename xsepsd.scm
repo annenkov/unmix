@@ -1,7 +1,15 @@
+#lang racket
+(require "xfcd.scm"
+         "xann.scm"
+         "x-misc.scm")
+
 (define (usepsd:unmix-static-and-dynamic mw-prog descr)
   (define (check-input-division descr mc)
-    (let ((fres (cddar mc)) (fargs (cadar mc)) (fname (caar mc)))
-      (if (not (equal? descr fargs))
+    (let* ([mc* (mpairs->pairs mc)]
+           [fres (cddar mc*)]
+           [fargs (cadar mc*)]
+           [fname (caar mc*)])
+      (when (not (equal? descr fargs))
         (begin
           (display "The division of the program's input parameters")
           (newline)
@@ -18,18 +26,19 @@
           (error "")))))
   (display "Finding Congruent Division")
   (newline)
-  (ux:load "xfcd")
   (display "Iterations: ")
   (let ((mc (ufcd:find-congruent-division mw-prog descr)))
-    (set! ufcd:find-congruent-division #f)
+    ; TODO check later
+    ;(set! ufcd:find-congruent-division #f)
     (newline)
     (display "Unmixing Static and Dynamic Data")
     (newline)
-    (check-input-division descr mc)
-    (ux:load "xann")
+    (check-input-division descr mc)    
     (let ((ann-prog (uann:make-annotated-program mw-prog mc)))
-      (set! uann:make-annotated-program #f)
+      ; TODO check later
+      ;(set! uann:make-annotated-program #f)
       (display "-- Done --")
       (newline)
       ann-prog)))
 
+(provide (all-defined-out))

@@ -1,3 +1,7 @@
+#lang racket
+(require scheme/mpair)
+(require "x-misc.scm"
+         "x-macro.scm")
 ;;; x-synt.scm
 ;;; Copyright (C) 1987 R. Kent Dybvig
 ;;; Permission to copy this software, in whole or in part, to use this
@@ -74,7 +78,7 @@
     (define (loop) (cons '() '()))
 
     (define loop-ids car)
-    (define loop-ids! set-car!)
+    (define loop-ids! set-mcar!)
 
     (define (duplicate-symbols? lst)
       (and (not (null? lst))
@@ -127,7 +131,7 @@
                              x exp))
                      (else (cons x vars))))
                   (else vars)))))
-        (if (duplicate-symbols? vars)
+        (when (duplicate-symbols? vars)
             (error "EXTEND-SYNTAX: duplicate variable in pattern" pat))
         '()))
     
@@ -181,7 +185,7 @@
                              (gen keys (cadr exp) ids loops (- qqlev 1)))))))
           ((and (eq? (car exp) 'with)
                 (not (pattern-variable? 'with ids)))
-           (if (not (syntax-match? '(with) '(with ((p x) ...) e) exp))
+           (when (not (syntax-match? '(with) '(with ((p x) ...) e) exp))
                (error "EXTEND-SYNTAX: invalid 'with' form" exp))
            (check-pat keys (map car (cadr exp)) exp)
            (list 'UNQUOTE
@@ -264,18 +268,18 @@
                           (f (cdr exp2))))))))
 
     (define (add-control! id loops exp)
-      (if (not (null? id))
+      (when (not (null? id))
           (begin
-            (if (null? loops)
+            (when (null? loops)
                 (error "EXTEND-SYNTAX: missing ellipsis in expansion" exp))
             (let ((x (loop-ids (car loops))))
-              (if (not (memq id x))
+              (when (not (memq id x))
                   (loop-ids! (car loops) (cons id x))))
             (add-control! (id-control id) (cdr loops) exp))))
 
     (define (make-loop loop body exp)
       (let ((ids (loop-ids loop)))
-        (if (null? ids)
+        (when (null? ids)
             (error "EXTEND-SYNTAX: extra ellipsis in expansion" exp))
         (cond
           ((and (null? (cdr ids))
@@ -318,7 +322,7 @@
     (define make-syntax
       (let ((x 'x))
         (lambda (keys clauses)
-          (if (memq '... keys)
+          (when (memq '... keys)
               (error "EXTEND-SYNTAX: invalid keyword ... in keyword list "
                      keys))
           `(lambda (,x)
@@ -332,12 +336,12 @@
     ;;:: Main function ;;;;
 
   (define (extend-syntax e)
-    (if (not (syntax-match? '(EXTEND-SYNTAX)
+    (when (not (syntax-match? '(EXTEND-SYNTAX)
                             '(EXTEND-SYNTAX (key key ...) clause ...)
                             e))
         (error "EXTEND-SYNTAX: invalid syntax" e))
     (let ((keys (cadr e)) (clauses (cddr e)))
-      (if (not (and-map symbol? keys))
+      (when (not (and-map symbol? keys))
           (error "EXTEND-SYNTAX: invalid keyword in keyword list" e))
       `(ux:install-macro ',(car keys) ,(make-syntax keys clauses))
       ))
@@ -345,3 +349,4 @@
   (ux:install-macro 'extend-syntax extend-syntax)
 
   )
+(provide (all-defined-out))

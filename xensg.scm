@@ -1,3 +1,6 @@
+#lang racket
+(require "x-synt.scm")
+
 (define (uensg:main src dst prog)
   (define (ensugar prog) (map compile-fundef prog))
   (define (compile-fundef fundef)
@@ -73,3 +76,4 @@
   (newline)
   prog)
 
+(provide (all-defined-out))

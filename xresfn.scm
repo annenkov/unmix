@@ -1,3 +1,4 @@
+#lang racket
 (define (uresfn:collect-residual-functions fndef*)
   (define (sep-rf fndef* rf)
     (if (null? fndef*)
@@ -46,3 +47,4 @@
     (let ((%%119 (collect-rf-fndef* fndef* `(,fn))))
       (let ((rf %%119)) (sep-rf fndef* rf)))))
 
+(provide (all-defined-out))

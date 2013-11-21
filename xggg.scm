@@ -1,3 +1,5 @@
+#lang racket
+
 (define ($specialize-fundef-$1 conf)
   (if (null? conf)
     '$specialize-fundef
@@ -178,3 +180,5 @@
            (car conf)
            (cdr conf))))
 
+
+(provide (all-defined-out))

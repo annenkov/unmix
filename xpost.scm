@@ -1,3 +1,13 @@
+#lang racket
+(require "xio.scm"
+         "xcgr.scm"
+         "xar.scm"
+         "xcgr.scm"
+         "xensg.scm"
+         "xcgr.scm"
+         "xar.scm"
+         "xensg.scm")
+
 (define (upost:switch action)
   (define (run-post)
     (newline)
@@ -14,18 +24,18 @@
         (display dst)
         (newline)
         (set! program (uio:file->list src))
-        (ux:load "xcgr")
         (set! program (ucgr:main pgm pgm program))
-        (set! ucgr:main #f)
-        (ux:load "xar")
+        ; TODO check later
+        ;(set! ucgr:main #f)
         (set! program (uar:main pgm pgm program))
-        (set! uar:main #f)
-        (ux:load "xcgr")
+        ; TODO check later
+        ;(set! uar:main #f)
         (set! program (ucgr:main pgm pgm program))
-        (set! ucgr:main #f)
-        (ux:load "xensg")
+        ; TODO check later
+        ;(set! ucgr:main #f)
         (set! program (uensg:main pgm pgm program))
-        (set! uensg:main #f)
+        ; TODO check later
+        ;(set! uensg:main #f)
         (uio:list->pp-file dst program 79)
         (newline)
         (display "Target program has been written into ")
@@ -42,9 +52,9 @@
                   src
                   "CGR"))
            (prog (uio:file->list src)))
-      (ux:load "xcgr")
       (set! prog (ucgr:main src dst prog))
-      (set! ucgr:main #f)
+      ; TODO check later
+      ;(set! ucgr:main #f)
       (uio:list->pp-file dst prog 79)
       (newline)
       (display "Target program has been written into ")
@@ -61,9 +71,9 @@
                   src
                   "AR"))
            (prog (uio:file->list src)))
-      (ux:load "xar")
       (set! prog (uar:main src dst prog))
-      (set! uar:main #f)
+      ; TODO check later
+      ;(set! uar:main #f)
       (uio:list->pp-file dst prog 79)
       (newline)
       (display "Target program has been written into ")
@@ -80,9 +90,9 @@
                   src
                   "SCE"))
            (prog (uio:file->list src)))
-      (ux:load "xensg")
       (set! prog (uensg:main src dst prog))
-      (set! uensg:main #f)
+      ; TODO check later
+      ;(set! uensg:main #f)
       (uio:list->pp-file dst prog 79)
       (newline)
       (display "Ensugared program has been written into ")
@@ -105,3 +115,5 @@
     ((ensugar) (run-ensugar))
     ((form) (run-form))))
 
+
+(provide (all-defined-out))

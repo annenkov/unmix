@@ -1,3 +1,4 @@
+#lang racket
 ;; File: xunmix.scm
 
 ;; Screen size
@@ -17,7 +18,7 @@
 (display "Loading Unmix")(newline)
 
 ;(require 'pretty-print)
-(use-modules (ice-9 pretty-print))
+(require ice-9 pretty-print)
 
 (read-enable 'case-insensitive)
 

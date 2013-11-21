@@ -1,3 +1,6 @@
+#lang racket
+(require racket/mpair)
+
 (define (uaraa:analyze-parameter-access! prog types)
   (define types-modified? #f)
   (define (collect-acc-prog!)
@@ -10,7 +13,7 @@
       prog))
   (define (collect-acc-exp! exp context fn vn)
     (cond ((symbol? exp)
-           (if (not (null? context))
+           (when (not (null? context))
              (begin (contract-var! exp context fn vn))))
           ((equal? (car exp) 'quote) #f)
           ((equal? (car exp) 'car)
@@ -45,7 +48,7 @@
     (for-each
       (lambda (fdescr)
         (let ((type* (cdr fdescr)) (fname (car fdescr)))
-          (set-cdr! fdescr (map func type*))))
+          (set-mcdr! fdescr (map func type*))))
       types))
   (define (mark-conses type)
     (cond ((equal? type 'absent) 'any)
@@ -87,7 +90,7 @@
     (let ((%%75 (assq fname types)))
       (let ((fdescr %%75))
         (let ((type* (cdr fdescr)))
-          (set-cdr! fdescr (contract-par context vname vn type*))))))
+          (set-mcdr! fdescr (contract-par context vname vn type*))))))
   (define (contract-par context par vname* type*)
     (let ((r-vname* (cdr vname*)) (vname (car vname*)))
       (let ((r-type* (cdr type*)) (type (car type*)))
@@ -142,3 +145,5 @@
     (collect-acc-prog!)
     (if types-modified? (recalc-accesses!) (update-types! generalize-type))))
 
+
+(provide (all-defined-out))

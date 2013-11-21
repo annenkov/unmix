@@ -1,3 +1,8 @@
+#lang racket
+(require racket/mpair)
+(require "x-misc.scm"
+         "xresfn.scm")
+
 (define (upcd:prevent-call-duplication! prog)
   (define (pcd-loop! prog)
     (display "Abstract Call Interpretation... Iterations: ")
@@ -77,9 +82,9 @@
           (let ((res1 (cdr fdescr)) (args1 (car fdescr)))
             (let ((%%104 (lub* args args1)))
               (let ((lub-args %%104))
-                (if (not (equal? lub-args args1))
+                (when (not (equal? lub-args args1))
                   (begin
-                    (set-car! fdescr lub-args)
+                    (set-mcar! fdescr lub-args)
                     (set! descr-modified? #t)))))))))
     (define (update-c-result! fname res)
       (let ((%%105 (assq fname descr)))
@@ -87,9 +92,9 @@
           (let ((res1 (cdr fdescr)) (args1 (car fdescr)))
             (let ((%%106 (lub res res1)))
               (let ((lub-res %%106))
-                (if (not (equal? lub-res res1))
+                (when (not (equal? lub-res res1))
                   (begin
-                    (set-cdr! fdescr lub-res)
+                    (set-mcdr! fdescr lub-res)
                     (set! descr-modified? #t)))))))))
     (set! descr (initial-c-descr))
     (let recalc-c-descr ()
@@ -154,9 +159,9 @@
                    (fname (cadr exp)))
                (make-rcall*! d-exp* vn vv)
                (let ((d-arg* (c-eval* d-exp* vn vv descr)))
-                 (if (dangerous-parameter? fname d-arg*)
+                 (when (dangerous-parameter? fname d-arg*)
                    (begin
-                     (set-car! exp 'rcall)
+                     (set-mcar! exp 'rcall)
                      (set! program-modified? #t))))))
             ((equal? (car exp) 'rcall)
              (let ((d-exp* (cadddr exp))
@@ -227,3 +232,5 @@
       (newline)
       `(,rf ,d-fundef* ,s-fundef*))))
 
+
+(provide (all-defined-out))

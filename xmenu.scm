@@ -1,3 +1,11 @@
+#lang racket
+(require "xio.scm"
+         "x-misc.scm"
+         "xpre.scm"
+         "xgen.scm"
+         "xpost.scm"
+         "x-macro.scm")
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;                                                                 ;;
 ;;  File:     xmenu.scm                                            ;;
@@ -12,9 +20,10 @@
 ;;                                                                 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define upre:switch #f)
-(define ugen:switch #f)
-(define upost:switch #f)
+; TODO check later
+;(define upre:switch #f)
+;(define ugen:switch #f)
+;(define upost:switch #f)
 (define uctmw:Scheme-to-Mixwell #f)
 (define uctmwrl:rem-let-prog #f)
 (define uctmwrl:cut-let-prog #f)
@@ -45,10 +54,10 @@
   (ux:main))
 
 (define (ux:main)
-
-  (set! upre:switch  #f)
-  (set! ugen:switch  #f)
-  (set! upost:switch #f)
+  ; TODO check later
+  ;(set! upre:switch  #f)
+  ;(set! ugen:switch  #f)
+  ;(set! upost:switch #f)
   (set! uctmw:Scheme-to-Mixwell #f)
   (set! uctmwrl:rem-let-prog    #f)
   (set! uctmwrl:cut-let-prog    #f)
@@ -82,7 +91,7 @@
         "eXit Scheme")
       "Work to do"
       '(P R O C V Q X))))
-    (if (memq reply '(C V S Q))
+    (when (memq reply '(C V S Q))
         (uio:clear-screen))
     (case reply
       ((P) (ux:pre:main))
@@ -102,10 +111,10 @@
       ((X) (exit)))))
 
 (define (ux:pre:main)
-  (define (pre-switch action)
-    (ux:load "xpre")
+  (define (pre-switch action)    
     (upre:switch action)
-    (set! upre:switch #f)
+    ; TODO check later
+    ;(set! upre:switch #f)
     'OK)
   (let ((reply
     (uio:display-menu
@@ -120,7 +129,7 @@
         "Main menu")
       "Work to do"
       '(P D A E M))))
-    (if (memq reply '(P D R A))
+    (when (memq reply '(P D R A))
         (uio:clear-screen))
     (case reply
       ((P) (pre-switch 'pre) (uio:pause) (ux:main))
@@ -130,10 +139,9 @@
       (else (ux:main)))))
 
 (define (ux:gen:main)
-  (define (gen-switch action)
-    (ux:load "xgen")
+  (define (gen-switch action)    
     (ugen:switch action)
-    (set! ugen:switch #f)
+    ;(set! ugen:switch #f)
     'OK)
   (let ((reply
     (uio:display-menu
@@ -148,7 +156,7 @@
         "Main menu")
       "Work to do"
       '(R S D G U M))))
-    (if (memq reply '(R S D G U))
+    (when (memq reply '(R S D G U))
         (uio:clear-screen))
       (case reply
         ((R) (gen-switch 'pe)     (uio:pause) (ux:main))
@@ -160,9 +168,9 @@
 
 (define (ux:post:main)
   (define (post-switch action)
-    (ux:load "xpost")
     (upost:switch action)
-    (set! upost:switch #f)
+    ; TODO check later
+    ;(set! upost:switch #f)
     'OK)
   (let ((reply
     (uio:display-menu
@@ -177,7 +185,7 @@
         "Main menu")
       "Work to do"
       '(P C A E F M))))
-    (if (memq reply '(P C A E F))
+    (when (memq reply '(P C A E F))
         (uio:clear-screen))
     (case reply
       ((P) (post-switch 'post)    (uio:pause) (ux:main))
@@ -195,3 +203,4 @@
          )
     (sex file-name)
     'OK))
+(provide (all-defined-out))

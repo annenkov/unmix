@@ -1,3 +1,6 @@
+#lang racket
+(require "x-macro.scm")
+
 (ux:install-macro
   'rcall
   (lambda (x)
@@ -17,3 +20,4 @@
            `(if ,(cadr x) (begin unquote (cddr x))))
           (else (error "when: invalid syntax " x)))))
 
+(provide (all-defined-out))

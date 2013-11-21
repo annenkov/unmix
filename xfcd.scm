@@ -1,3 +1,7 @@
+#lang racket
+(require racket/mpair)
+(require "x-misc.scm")
+
 (define (ufcd:find-congruent-division prog descr)
   (define meta-confs #f)
   (define meta-confs-modified? #f)
@@ -78,10 +82,10 @@
             (let ((lub-args %%7))
               (let ((%%8 (lub res res1)))
                 (let ((lub-res %%8))
-                  (if (or (not (equal? lub-args args1))
+                  (when (or (not (equal? lub-args args1))
                           (not (equal? lub-res res1)))
                     (begin
-                      (set-cdr! fdescr `(,lub-args unquote lub-res))
+                      (set-mcdr! fdescr `(,lub-args unquote lub-res))
                       (set! meta-confs-modified? #t)))))))))))
   (define (lookup-variable vname vn vv)
     (if (and (null? vn) (null? vv))
@@ -95,12 +99,14 @@
           (lookup-variable vname nrest vrest)))))
   (let ((prog-rest (cdr prog)) (fname (caar prog)))
     (set! meta-confs
-      `((,fname ,descr unquote (lub-list descr))
+      (pairs->mpairs `((,fname ,descr unquote (lub-list descr))
         unquote
-        (initial-meta-confs prog-rest))))
+        (initial-meta-confs prog-rest)))))
   (let recalc-mc! ()
     (display "*")
     (set! meta-confs-modified? #f)
     (collect-mc-prog!)
     (if meta-confs-modified? (recalc-mc!) meta-confs)))
 
+
+(provide (all-defined-out))

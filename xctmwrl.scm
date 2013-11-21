@@ -1,3 +1,6 @@
+#lang racket
+(require "x-misc.scm")
+
 (define (uctmwrl:rem-let-prog prog)
   (define (rem-let-fundef fundef)
     (let ((exp (cadddr fundef))
@@ -190,3 +193,4 @@
           (free-vars* rest free bound)))))
   (append-map cut-let-fundef prog))
 
+(provide (all-defined-out))
