@@ -1,5 +1,5 @@
 #lang racket
-;(require )
+(require "x-misc.scm")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;                                                                 ;;
@@ -164,8 +164,9 @@
     (uio:pp-list lst p)
     (close-output-port p)))
 
-(define (uio:pp-list exp* port)
-  (for-each (lambda (exp) (pretty-print exp port) (newline port)) exp*))
+(define (uio:pp-list mexp* port)
+  (let ([exp* (mpairs->pairs mexp*)]) ; converting to immutable
+   (for-each (lambda (exp) (pretty-print exp port) (newline port)) exp*)))
 
 ;;
 ;; Requests name.

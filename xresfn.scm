@@ -1,6 +1,9 @@
 #lang racket
-(define (uresfn:collect-residual-functions fndef*)
-  (define (sep-rf fndef* rf)
+(require "x-misc.scm")
+
+(define (uresfn:collect-residual-functions mfndef*)
+  (let ([fndef* (mpairs->pairs mfndef*)]) ; convsrting to immutable
+   (define (sep-rf fndef* rf)
     (if (null? fndef*)
       '()
       (let ((rest (cdr fndef*)) (fundef (car fndef*)))
@@ -45,6 +48,6 @@
         (let ((rf (collect-rf-exp exp rf))) (collect-rf-exp* rest rf)))))
   (let ((fn (caar fndef*)))
     (let ((%%119 (collect-rf-fndef* fndef* `(,fn))))
-      (let ((rf %%119)) (sep-rf fndef* rf)))))
+      (let ((rf %%119)) (sep-rf fndef* rf))))))
 
 (provide (all-defined-out))

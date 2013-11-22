@@ -11,8 +11,8 @@
         (let ((body (cadddr fundef))
               (pars (cadr fundef))
               (fname (car fundef)))
-          (let ((%%1 (assq fname meta-confs)))
-            (let ((res (cddr %%1)) (args (cadr %%1)))
+          (let ((%%1 (massq fname meta-confs)))
+            (let ((res (mcddr %%1)) (args (mcadr %%1)))
               (update-mc!
                 fname
                 args
@@ -54,8 +54,8 @@
            (let ((fname_exp* (cdr exp)) (call? (car exp)))
              (let ((exp* (cdr fname_exp*))
                    (fname (car fname_exp*)))
-               (let ((%%5 (assq fname meta-confs)))
-                 (let ((fres (cddr %%5)) (fargs (cadr %%5))) fres)))))
+               (let ((%%5 (massq fname meta-confs)))
+                 (let ((fres (mcddr %%5)) (fargs (mcadr %%5))) fres)))))
           ((equal? (car exp) 'xcall)
            (let ((exp* (cddr exp)) (fname (cadr exp)))
              (lub-list (abstract-eval* exp* vn vv))))
@@ -75,23 +75,27 @@
              `(,fname ,(map (lambda (par) 's) fpars) . s)))
          prog))
   (define (update-mc! fname args res)
-    (let ((%%6 (assq fname meta-confs)))
+    (let ((%%6 (massq fname meta-confs)))
       (let ((fdescr %%6))
-        (let ((res1 (cddr fdescr)) (args1 (cadr fdescr)))
-          (let ((%%7 (map lub args args1)))
+        (let ([res1 (mcddr fdescr)]
+              [args1 (mpairs->pairs (mcadr fdescr))])
+          (let ([%%7 (map lub (mpairs->pairs args) args1)])
             (let ((lub-args %%7))
               (let ((%%8 (lub res res1)))
                 (let ((lub-res %%8))
                   (when (or (not (equal? lub-args args1))
                           (not (equal? lub-res res1)))
                     (begin
-                      (set-mcdr! fdescr `(,lub-args unquote lub-res))
+                      ; for debug
+                      (display (format "Before: ~s" fdescr))
+                      (set-mcdr! fdescr (pairs->mpairs `(,lub-args unquote lub-res)))
+                      (display (format "After: ~s" fdescr))
                       (set! meta-confs-modified? #t)))))))))))
   (define (lookup-variable vname vn vv)
     (if (and (null? vn) (null? vv))
       (error "Undefined variable: " vname)
-      (let ((vrest (cdr vv))
-            (vv (car vv))
+      (let ((vrest (mcdr vv))
+            (vv (mcar vv))
             (nrest (cdr vn))
             (vn (car vn)))
         (if (eq? vname vn)
@@ -99,14 +103,14 @@
           (lookup-variable vname nrest vrest)))))
   (let ((prog-rest (cdr prog)) (fname (caar prog)))
     (set! meta-confs
-      (pairs->mpairs `((,fname ,descr unquote (lub-list descr))
+      (pairs->mpairs `((,fname ,descr unquote (lub-list descr)) ; converting to mutable list
         unquote
         (initial-meta-confs prog-rest)))))
   (let recalc-mc! ()
     (display "*")
     (set! meta-confs-modified? #f)
     (collect-mc-prog!)
+    (display meta-confs-modified?)
     (if meta-confs-modified? (recalc-mc!) meta-confs)))
-
 
 (provide (all-defined-out))

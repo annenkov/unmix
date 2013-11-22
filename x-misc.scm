@@ -221,44 +221,44 @@
 ;; Handling mutable pairs
 
 (define (pairs->mpairs p)
-  (if (pair? p) 
-      (mcons (pairs->mpairs (car p)) (pairs->mpairs (cdr p)))
-      p))
+  (cond [(pair? p) (mcons (pairs->mpairs (car p)) (pairs->mpairs (cdr p)))]
+        [(mpair? p) (mcons (pairs->mpairs (mcar p)) (pairs->mpairs (mcdr p)))]
+        [else p]))
 
 (define (pair->mpair p)
   (mcons (car p) (cdr p)))
 
-(define (mcadr p)
-  (mcar (mcdr p)))
-
-(define (mcddr p)
-  (mcdr (mcdr p)))
-
 (define (mpairs->pairs p)
-  (if (mpair? p) 
+  (if (mpair? p)
       (cons (mpairs->pairs (mcar p)) (mpairs->pairs (mcdr p)))
       p))
 
-  (define-syntax (provide-combination stx)
-    (syntax-case stx ()
-      [(_ id)
-       (with-syntax ([body
-                      (let loop ([ops (let ([s (symbol->string (syntax-e #'id))])
-                                        (string->list (substring s 1 (sub1 (string-length s)))))])
-                        (if (null? ops)
-                            'x
-                            `(,(if (equal? (car ops) #\a) 'mcar 'mcdr)
-                              ,(loop (cdr ops)))))]
-                     [mid (datum->syntax #'id
-                                         (string->symbol (format "m~a" (syntax-e #'id)))
-                                         #'id)])
-         #'(begin
-             (define mid (lambda (x) body))))]
-      [(_ id ...) #'(begin (provide-combination id) ...)]))
+(define (mfoldl-map f u g lst)
+  (let loop ((u u) (lst lst))
+    (if (null? lst)
+        u
+        (loop (f u (g (mcar lst))) (mcdr lst)))))
 
-  (provide-combination caaar caadr cadar caddr cdaar cdadr cddar cdddr
-                       caaaar caaadr caadar caaddr cadaar cadadr caddar cadddr
-                       cdaaar cdaadr cdadar cdaddr cddaar cddadr cdddar cddddr)
+(define-syntax (provide-combination stx)
+  (syntax-case stx ()
+    [(_ id)
+     (with-syntax ([body
+                    (let loop ([ops (let ([s (symbol->string (syntax-e #'id))])
+                                      (string->list (substring s 1 (sub1 (string-length s)))))])
+                      (if (null? ops)
+                          'x
+                          `(,(if (equal? (car ops) #\a) 'mcar 'mcdr)
+                            ,(loop (cdr ops)))))]
+                   [mid (datum->syntax #'id
+                                       (string->symbol (format "m~a" (syntax-e #'id)))
+                                       #'id)])
+       #'(begin
+           (define mid (lambda (x) body))))]
+    [(_ id ...) #'(begin (provide-combination id) ...)]))
+
+(provide-combination cadr cddr caaar caadr cadar caddr cdaar cdadr cddar cdddr
+                     caaaar caaadr caadar caaddr cadaar cadadr caddar cadddr
+                     cdaaar cdaadr cdadar cdaddr cddaar cddadr cdddar cddddr)
 
 
 (provide (all-defined-out))
