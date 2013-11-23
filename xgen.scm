@@ -95,13 +95,6 @@
     (let ((s-fundef* (caddr prog)) (svn (car (cdaadr prog))) (rf (car prog)))
       (when (not (= (length svn) (length data)))
         (begin
-          (display "Debug..")
-          (newline)
-          (display (length svn))
-          (newline)
-          (display (length data))
-          (newline)
-          (display "..end")
           (error "Mismatch in mumber of data files")))))
   (define (run-pepe)
     (newline)
@@ -194,7 +187,7 @@
       (set! program (uensg:main pgm pgm program))
       ; TODO Check later
       ;(set! uensg:main #f)
-      (uio:list->pp-file dst program 79)
+      (uio:list->pp-file dst (mpairs->pairs program) 79)
       (newline)
       (display "Target program has been written into ")
       (display dst)
