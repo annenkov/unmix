@@ -159,9 +159,6 @@
 ;; Pretty prints list "lst" into the file "name".
 ;;
 
-;; Setting to #f to pretty print expressions without quotes
-(print-as-expression #f)
-
 (define (uio:list->pp-file file lst width)
   (let ((p (open-output-file file)))
     (uio:pp-list lst p)
@@ -169,7 +166,7 @@
 
 (define (uio:pp-list mexp* port)
   (let ([exp* (mpairs->pairs mexp*)]) ; converting to immutable
-   (for-each (lambda (exp) (pretty-print exp port) (newline port)) exp*)))
+   (for-each (lambda (exp) (pretty-write exp port) (newline port)) exp*))) ; using pretty-write to pretty print expressions without quotes
 
 ;;
 ;; Requests name.
