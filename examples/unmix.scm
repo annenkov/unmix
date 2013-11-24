@@ -1,2 +1,2 @@
-(define **unmix-path** "../")
-(load (string-append **unmix-path** "xunmix.scm"))
+#lang racket
+(require "../unmix.scm")

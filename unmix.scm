@@ -1,4 +1,4 @@
-#lang racket/load
+#lang racket
 ;; This file is used to run Unmix under Racket. 
 (require "x-match.scm"
          "xmenu.scm" )
