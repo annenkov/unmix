@@ -133,32 +133,23 @@ More information may be found in the source programs of Unmix.
 HOW TO RUN UNMIX?
 =================
 
-This version of Unmix can be run under SCM Scheme implementation.
+This version of Unmix can be run under Racket.
 
-The directory containing programs to be specialized must also contain
-the file unmix.scm having the following contents:
+Use 
+    racket unmix.scm
 
-(define **unmix-path** SSSS)
-(load (string-append **unmix-path** "xunmix.scm"))
+to run UNMIX from project root directory.
 
-where SSSS is the path to the directory containing Unmix.
+UNMIX can be ran using DrRacket: load unmix.scm to environment and run it (press F5).
 
-For example, if Unmix resides in the directory ~/unmix/, the file
-unmix.scm must contain the following lines:
+If UNMIX ran from project root, use relative paths to programs to be specialized.
+For example: 
+    examples/zip
 
-(define **unmix-path** "~/unmix/")
-(load (string-append **unmix-path** "xunmix.scm"))
+You can also use unmix.scm from directories with programs to be specialized. 
+In that case all program files can be accessed without specifying the path, just file name.
 
-To call Unmix, make sure that the directory containing programs to be
-specialized is the current one. Then start the Scheme system and load
-the file unmix.scm.
-
-When the Scheme prompt appears, enter
-
-(UNMIX)
-
-As a result, Unmix starts and displays a menu on the screen, which
-provides further information.
+When Unmix starts it displays a menu on the screen, which provides further information.
 
 
 
