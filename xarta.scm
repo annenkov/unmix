@@ -1,5 +1,6 @@
 #lang racket
 (require racket/mpair)
+(require "x-misc.scm")
 
 (define (uarta:analyze-argument-types prog)
   (define types #f)
@@ -17,8 +18,8 @@
         (let ((body (cadddr fundef))
               (parlist (cadr fundef))
               (fname (car fundef)))
-          (let ((%%88 (assq fname types)))
-            (let ((fargs (cdr %%88))) (collect-args! body parlist fargs)))))
+          (let ((%%88 (massq fname types)))
+            (let ((fargs (mcdr %%88))) (collect-args! body parlist fargs)))))
       prog))
   (define (collect-args! exp vn vv)
     (cond ((symbol? exp) #f)
@@ -89,12 +90,12 @@
            (let ((v2 (caddr t2)) (v1 (cadr t2)) (u2 (caddr t1)) (u1 (cadr t1)))
              `(cons ,(lub u1 v1) ,(lub u2 v2))))
           (else (error "SELECT: no match for" t1 t2))))
-  (define (lub* t1* t2*) (map lub t1* t2*))
+  (define (lub* t1* t2*) (mmap lub t1* t2*))
   (define (update-args! fname args)
-    (let ((%%89 (assq fname types)))
+    (let ((%%89 (massq fname types)))
       (let ((fdescr %%89))
-        (let ((args1 (cdr fdescr)))
-          (let ((%%90 (lub* args args1)))
+        (let ((args1 (mcdr fdescr)))
+          (let ((%%90 (lub* (pairs->mpairs args) args1)))  ; converting to mutable
             (let ((lub-args %%90))
               (when (not (equal? lub-args args1))
                 (begin
@@ -103,9 +104,9 @@
   (define (lookup-variable vname vn vv)
     (if (and (null? vn) (null? vv))
       (error "Undefined variable" vname)
-      (let ((vrest (cdr vv)) (vv (car vv)) (nrest (cdr vn)) (vn (car vn)))
+      (let ((vrest (mcdr vv)) (vv (mcar vv)) (nrest (cdr vn)) (vn (car vn)))
         (if (eq? vname vn) vv (lookup-variable vname nrest vrest)))))
-  (set! types (initial-types))
+  (set! types (pairs->mpairs (initial-types)))  ; converting to mutable
   (let recalc-types! ()
     (display "*")
     (set! types-modified? #f)

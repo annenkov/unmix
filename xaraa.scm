@@ -1,5 +1,6 @@
 #lang racket
 (require racket/mpair)
+(require "x-misc.scm")
 
 (define (uaraa:analyze-parameter-access! prog types)
   (define types-modified? #f)
@@ -28,8 +29,8 @@
              (collect-acc-exp! exp2 (un-cdr context) fn vn)))
           ((equal? (car exp) 'call)
            (let ((exp* (cddr exp)) (fname (cadr exp)))
-             (let ((%%74 (assq fname types)))
-               (let ((arg-type* (cdr %%74)))
+             (let ((%%74 (massq fname types)))
+               (let ((arg-type* (mcdr %%74)))
                  (collect-acc-arg*! exp* arg-type* fn vn)))))
           ((equal? (car exp) 'xcall)
            (let ((exp* (cddr exp)) (fname (cadr exp)))
@@ -45,9 +46,9 @@
       exp*
       patt*))
   (define (update-types! func)
-    (for-each
+    (mfor-each
       (lambda (fdescr)
-        (let ((type* (cdr fdescr)) (fname (car fdescr)))
+        (let ((type* (mpairs->pairs (mcdr fdescr))) (fname (mcar fdescr))) ; conveting back to regular pairs
           (set-mcdr! fdescr (map func type*))))
       types))
   (define (mark-conses type)
@@ -87,9 +88,9 @@
            (let ((p2 (caddr context)) (p1 (cadr context))) (patt->context p2)))
           (else (error "SELECT: no match for" context))))
   (define (contract-var! vname context fname vn)
-    (let ((%%75 (assq fname types)))
+    (let ((%%75 (massq fname types)))
       (let ((fdescr %%75))
-        (let ((type* (cdr fdescr)))
+        (let ((type* (mcdr fdescr)))
           (set-mcdr! fdescr (contract-par context vname vn type*))))))
   (define (contract-par context par vname* type*)
     (let ((r-vname* (cdr vname*)) (vname (car vname*)))

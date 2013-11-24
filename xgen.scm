@@ -187,7 +187,7 @@
       (set! program (uensg:main pgm pgm program))
       ; TODO Check later
       ;(set! uensg:main #f)
-      (uio:list->pp-file dst (mpairs->pairs program) 79)
+      (uio:list->pp-file dst program 79)
       (newline)
       (display "Target program has been written into ")
       (display dst)
