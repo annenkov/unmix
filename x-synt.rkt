@@ -1,7 +1,7 @@
 #lang racket
-(require scheme/mpair)
-(require "x-misc.scm"
-         "x-macro.scm")
+(require racket/mpair)
+(require "x-misc.rkt"
+         "x-macro.rkt")
 ;;; x-synt.scm
 ;;; Copyright (C) 1987 R. Kent Dybvig
 ;;; Permission to copy this software, in whole or in part, to use this

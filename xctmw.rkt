@@ -1,6 +1,6 @@
 #lang racket
-(require "x-macro.scm"
-         "x-misc.scm")
+(require "x-macro.rkt"
+         "x-misc.rkt")
 
 (define (uctmw:compile-program sc-prog)
   (define (check-program fundef*)

@@ -1,7 +1,7 @@
 #lang racket
 (require racket/mpair)
-(require "xresfn.scm"
-         "x-misc.scm")
+(require "xresfn.rkt"
+         "x-misc.rkt")
 
 (define (upiu:prevent-infinite-unfolding! prog)
   (define (find-loops-prog rf prog)

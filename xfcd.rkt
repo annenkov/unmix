@@ -1,6 +1,6 @@
 #lang racket
 (require racket/mpair)
-(require "x-misc.scm")
+(require "x-misc.rkt")
 
 (define (ufcd:find-congruent-division prog descr)
   (define meta-confs #f)

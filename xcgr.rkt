@@ -1,6 +1,6 @@
 #lang racket
 
-(require "x-misc.scm")
+(require "x-misc.rkt")
 
 (define (ucgr:main src dst src-prog)
   (define (find-cutpoints prog)

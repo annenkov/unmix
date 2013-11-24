@@ -1,12 +1,12 @@
 #lang racket
-(require "xio.scm"
-         "xcgr.scm"
-         "xar.scm"
-         "xcgr.scm"
-         "xensg.scm"
-         "xcgr.scm"
-         "xar.scm"
-         "xensg.scm")
+(require "xio.rkt"
+         "xcgr.rkt"
+         "xar.rkt"
+         "xcgr.rkt"
+         "xensg.rkt"
+         "xcgr.rkt"
+         "xar.rkt"
+         "xensg.rkt")
 
 (define (upost:switch action)
   (define (run-post)

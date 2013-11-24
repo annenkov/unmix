@@ -1,6 +1,6 @@
 #lang racket
-(require "xresfn.scm"
-         "x-misc.scm")
+(require "xresfn.rkt"
+         "x-misc.rkt")
 
 (define (uann:make-annotated-program mw-prog mc)
   (define (annotate-fndef* fndef* mc)

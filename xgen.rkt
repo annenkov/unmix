@@ -1,14 +1,14 @@
 #lang racket
-(require "x-misc.scm"
-         "xio.scm"
-         "xmainpe.scm"
-         "xpe.scm"
-         "xsettings.scm"
-         "xggg.scm"
-         "xcgr.scm"
-         "xar.scm"
-         "xcgr.scm"
-         "xensg.scm")
+(require "x-misc.rkt"
+         "xio.rkt"
+         "xmainpe.rkt"
+         "xpe.rkt"
+         "xsettings.rkt"
+         "xggg.rkt"
+         "xcgr.rkt"
+         "xar.rkt"
+         "xcgr.rkt"
+         "xensg.rkt")
 
 (define (ugen:switch action)
   (define (make-res-filename file-names)

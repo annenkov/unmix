@@ -1,7 +1,7 @@
 #lang racket
-(require "xfcd.scm"
-         "xann.scm"
-         "x-misc.scm")
+(require "xfcd.rkt"
+         "xann.rkt"
+         "x-misc.rkt")
 
 (define (usepsd:unmix-static-and-dynamic mw-prog descr)
   (define (check-input-division descr mc)

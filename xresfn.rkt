@@ -1,5 +1,5 @@
 #lang racket
-(require "x-misc.scm")
+(require "x-misc.rkt")
 
 (define (uresfn:collect-residual-functions mfndef*)
   (let ([fndef* (mpairs->pairs mfndef*)]) ; convsrting to immutable

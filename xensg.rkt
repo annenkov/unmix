@@ -1,5 +1,5 @@
 #lang racket
-(require "x-synt.scm")
+(require "x-synt.rkt")
 
 (define (uensg:main src dst prog)
   (define (ensugar prog) (map compile-fundef prog))

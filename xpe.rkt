@@ -1,5 +1,5 @@
 #lang racket
-(require "x-misc.scm")
+(require "x-misc.rkt")
 
 (define ($specialize-fundef ann-prog conf)
   (let ((s-prog (caddr ann-prog)) (d-prog (cadr ann-prog)) (rf (car ann-prog)))

@@ -1,6 +1,6 @@
 #lang racket
 (require racket/mpair)
-(require "x-misc.scm")
+(require "x-misc.rkt")
 
 (define (uarta:analyze-argument-types prog)
   (define types #f)
