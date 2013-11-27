@@ -1,10 +1,10 @@
 #lang racket
-(require "xio.scm"
-         "x-misc.scm"
-         "xpre.scm"
-         "xgen.scm"
-         "xpost.scm"
-         "x-macro.scm")
+(require "xio.rkt"
+         "x-misc.rkt"
+         "xpre.rkt"
+         "xgen.rkt"
+         "xpost.rkt"
+         "x-macro.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;                                                                 ;;

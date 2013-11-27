@@ -1,5 +1,5 @@
 #lang racket
-(require "x-macro.scm")
+(require "x-macro.rkt")
 
 (ux:install-macro
   'rcall

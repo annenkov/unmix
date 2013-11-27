@@ -1,7 +1,7 @@
 #lang racket
 (require racket/mpair)
-(require "x-misc.scm"
-         "xresfn.scm")
+(require "x-misc.rkt"
+         "xresfn.rkt")
 
 (define (upcd:prevent-call-duplication! prog)
   (define (pcd-loop! prog)

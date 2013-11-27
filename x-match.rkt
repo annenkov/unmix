@@ -1,7 +1,7 @@
 #lang racket
-(require "x-misc.scm"
-         "x-macro.scm"
-         "x-synt.scm")
+(require "x-misc.rkt"
+         "x-macro.rkt"
+         "x-synt.rkt")
 (define (%*gen-let-vars*% args)
   (map (lambda (arg) (if (symbol? arg) arg (ux:gentemp))) args))
 

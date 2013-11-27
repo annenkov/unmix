@@ -1,7 +1,7 @@
 #lang racket
 ;; This file is used to run Unmix under Racket. 
-(require "x-match.scm"
-         "xmenu.scm" )
+(require "x-match.rkt"
+         "xmenu.rkt" )
 
 (for-each
  (lambda (x) (display x) (newline))

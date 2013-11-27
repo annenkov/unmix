@@ -1,6 +1,6 @@
 #lang racket
 (require racket/mpair)
-(require "x-misc.scm")
+(require "x-misc.rkt")
 
 (define (uaraa:analyze-parameter-access! prog types)
   (define types-modified? #f)

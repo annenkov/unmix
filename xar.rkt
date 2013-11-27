@@ -1,8 +1,8 @@
 #lang racket
-(require "xarta.scm"
-         "xaraa.scm"
-         "xarps.scm"
-         "x-misc.scm")
+(require "xarta.rkt"
+         "xaraa.rkt"
+         "xarps.rkt"
+         "x-misc.rkt")
 
 (define (uar:main src dst prog)
   (define types #f)

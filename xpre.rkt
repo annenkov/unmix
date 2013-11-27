@@ -1,12 +1,12 @@
 #lang racket
-(require "xio.scm"
-         "xensg.scm"
-         "xctmw.scm"
-         "xctmwrl.scm"
-         "xresfn.scm"
-         "xsepsd.scm"
-         "xpiu.scm"
-         "xpcd.scm")
+(require "xio.rkt"
+         "xensg.rkt"
+         "xctmw.rkt"
+         "xctmwrl.rkt"
+         "xresfn.rkt"
+         "xsepsd.rkt"
+         "xpiu.rkt"
+         "xpcd.rkt")
 
 (define (upre:switch action)
   (define (run-pre)

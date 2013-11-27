@@ -3,4 +3,4 @@
 ;; Unmix under MacGambit Scheme.
 
 (define **unmix-path** "")
-(load (string-append **unmix-path** "xunmixg.scm"))
+(load (string-append **unmix-path** "xunmixg.rkt"))

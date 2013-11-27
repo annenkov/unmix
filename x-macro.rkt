@@ -1,6 +1,6 @@
 #lang racket
-(require scheme/mpair)
-(require "x-misc.scm")
+(require racket/mpair)
+(require "x-misc.rkt")
 ;;
 ;; File: X-MACRO.scm
 ;;

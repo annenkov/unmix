@@ -1,8 +1,8 @@
 #lang racket
 (require racket/mpair)
-(require "xpe.scm"
-         "xggg.scm"
-         "x-misc.scm")
+(require "xpe.rkt"
+         "xggg.rkt"
+         "x-misc.rkt")
 
 (define (umainpe:generate-residual-program o-file ann-prog goalsvv)
   (define o-port #f)

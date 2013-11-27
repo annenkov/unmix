@@ -1,5 +1,5 @@
 #lang racket
-(require "x-misc.scm")
+(require "x-misc.rkt")
 
 (define (uctmwrl:rem-let-prog prog)
   (define (rem-let-fundef fundef)
