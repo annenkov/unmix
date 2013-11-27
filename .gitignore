@@ -1,1 +1,4 @@
 compiled/
+examples/*.ann
+examples/*.scm
+examples/*.mwr
