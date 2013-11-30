@@ -1,4 +1,5 @@
 #lang racket
+(require srfi/13)
 (require "x-misc.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -114,18 +115,7 @@
 ;;
 
 (define (uio:read-line)
-  (define (drop-spaces lst)
-    (cond ((null? lst) lst)
-          ((eqv? (car lst) #\space)
-           (drop-spaces (cdr lst)))
-          (else lst)))
-  (let loop ((lst '()))
-    (let ((x (read-char)))
-      (case x
-        ((#\newline)
-         (list->string (drop-spaces (reverse (drop-spaces lst)))))
-        (else
-          (loop (cons x lst)))))))
+  (string-trim (read-line)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;                                                                 ;;
