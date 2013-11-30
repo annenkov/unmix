@@ -1,3 +1,5 @@
+*.rkt~
+*.bak
 compiled/
 examples/*.ann
 examples/*.scm
