@@ -36,7 +36,7 @@
         (set! program (uensg:main pgm pgm program))
         ; TODO check later
         ;(set! uensg:main #f)
-        (uio:list->pp-file dst program 79)
+        (uio:list->pp-target-file dst program 79)
         (newline)
         (display "Target program has been written into ")
         (display dst)
@@ -55,7 +55,7 @@
       (set! prog (ucgr:main src dst prog))
       ; TODO check later
       ;(set! ucgr:main #f)
-      (uio:list->pp-file dst prog 79)
+      (uio:list->pp-target-file dst prog 79)
       (newline)
       (display "Target program has been written into ")
       (display dst)
@@ -74,7 +74,7 @@
       (set! prog (uar:main src dst prog))
       ; TODO check later
       ;(set! uar:main #f)
-      (uio:list->pp-file dst prog 79)
+      (uio:list->pp-target-file dst prog 79)
       (newline)
       (display "Target program has been written into ")
       (display dst)

@@ -1,4 +1,5 @@
 #lang racket
+(require srfi/13)
 (require "x-misc.rkt"
          "xio.rkt"
          "xmainpe.rkt"
@@ -8,7 +9,8 @@
          "xcgr.rkt"
          "xar.rkt"
          "xcgr.rkt"
-         "xensg.rkt")
+         "xensg.rkt"
+         (prefix-in settings: "xsettings.rkt"))
 
 (define (ugen:switch action)
   (define (make-res-filename file-names)
@@ -73,7 +75,7 @@
     ;(set! xapply #f)
     )
   (define (pe-aux src data-file-names res program static-inputs)
-    (let ((dst (string-append res ".mwr")) (scm (string-append res ".scm")))
+    (let ((dst (string-append res ".mwr")) (scm (string-append res settings:**program-file-ext**)))
       (check-static-inputs program static-inputs)
       (newline)
       (display "Residual program generation:")
@@ -101,7 +103,7 @@
     (let* ((ann (uio:request-file-name "Annotated program file name" "" "ann"))
            (res (uio:request-name "Residual program file name " "GENGEN"))
            (dst (string-append res ".mwr"))
-           (scm (string-append res ".scm"))
+           (scm (string-append res settings:**program-file-ext**))
            (program (uio:file->list (string-append **unmix-path** "xpe.ann")))
            (static-inputs (list (uio:file->list ann))))
       (newline)
@@ -120,11 +122,11 @@
       (post-processing dst scm)))
   (define (run-gen)
     (newline)
-    (let* ((gen (uio:request-file-name "Generator file name" "" "scm"))
+    (let* ((gen (uio:request-file-name "Generator file name" "" (string-drop settings:**program-file-ext** 1)))
            (data-file-names (request-data-file-names))
            (res (make-res-filename data-file-names))
            (dst (string-append res ".mwr"))
-           (scm (string-append res ".scm"))
+           (scm (string-append res settings:**program-file-ext**))
            (static-inputs (append-map uio:file->list data-file-names)))
       (newline)
       (display "Residual program generation:")
@@ -148,7 +150,7 @@
     (let* ((ann (uio:request-file-name "Annotated program file name" "" "ann"))
            (res (uio:request-name "Residual program file name " "GENGEN"))
            (dst (string-append res ".mwr"))
-           (scm (string-append res ".scm"))
+           (scm (string-append res settings:**program-file-ext**))
            (static-inputs (list (uio:file->list ann))))      
       (newline)
       (display "Generation of the Residual Program Generator:")
@@ -187,7 +189,7 @@
       (set! program (uensg:main pgm pgm program))
       ; TODO Check later
       ;(set! uensg:main #f)
-      (uio:list->pp-file dst program 79)
+      (uio:list->pp-target-file dst program 79)
       (newline)
       (display "Target program has been written into ")
       (display dst)
@@ -198,6 +200,5 @@
     ((pepepe) (run-pepepe))
     ((gengen) (run-gengen))
     ((gen) (run-gen))))
-
 
 (provide (all-defined-out))

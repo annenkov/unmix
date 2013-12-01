@@ -1,6 +1,7 @@
 #lang racket
 (require racket/mpair)
-(require "x-misc.rkt")
+(require "x-misc.rkt"
+         (prefix-in settings: "xsettings.rkt"))
 ;;
 ;; File: X-MACRO.scm
 ;;
@@ -276,7 +277,7 @@
 
 (define (sex file-name)
   (let ((sex   (string-append file-name ".sex"))
-        (scm   (string-append file-name ".scm"))
+        (scm   (string-append file-name settings:**program-file-ext**))
         )
     (display "Macro expanding: ") (display sex)
     (display " -> ") (display scm) (newline)

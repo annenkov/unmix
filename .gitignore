@@ -3,4 +3,5 @@
 compiled/
 examples/*.ann
 examples/*.scm
+examples/*.rkt
 examples/*.mwr

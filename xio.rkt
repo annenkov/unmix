@@ -1,6 +1,7 @@
 #lang racket
 (require srfi/13)
-(require "x-misc.rkt")
+(require "x-misc.rkt"
+         (prefix-in settings: "xsettings.rkt"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;                                                                 ;;
@@ -140,23 +141,40 @@
     (uio:write-list lst p)
     (close-output-port p)))
 
-(define (uio:write-list lst port)
+(define (uio:write-list lst port)  
   (for-each
     (lambda (item) (write item port) (newline port) (newline port))
     lst))
 
 ;;
 ;; Pretty prints list "lst" into the file "name".
+;; Used to write target scheme/racket files.
+;;
+(define (uio:list->pp-target-file file lst width)
+  (define (head-writer p)
+    (when settings:**lang-directive** 
+        (begin 
+          (fprintf p "~a" settings:**lang-directive** )
+          (newline p)
+          (newline p))))
+    (uio:list->pp-file file lst width head-writer))
+
+;;
+;; Pretty prints list "lst" into the file "name".
+;; The "head-writer" can be used to write some additional info before
+;; pretty printed list "lst".
 ;;
 
-(define (uio:list->pp-file file lst width)
+(define (uio:list->pp-file file lst width [head-writer #f])
   (let ((p (open-output-file file)))
+    (head-writer p)
     (uio:pp-list lst p)
     (close-output-port p)))
 
 (define (uio:pp-list mexp* port)
   (let ([exp* (mpairs->pairs mexp*)]) ; converting to immutable
-   (for-each (lambda (exp) (pretty-write exp port) (newline port)) exp*))) ; using pretty-write to pretty print expressions without quotes
+    ; using pretty-write to pretty print expressions without quotes
+    (for-each (lambda (exp) (pretty-write exp port) (newline port)) exp*))) 
 
 ;;
 ;; Requests name.
