@@ -5,7 +5,7 @@
     '$specialize-fundef
     ($check-function-$1 (car conf) (cdr conf))))
 
-(define ($check-function-$1 fname svv)
+(define ($check-function-$1 fname svv)  
   (cond ((eq? fname '$specialize-fundef) `((conf) ,($pe-exp-$1 (car svv))))
         ((eq? fname '$check-function)
          `((fname svv) ,($pe-exp-$2 (car svv) (cadr svv) (caddr svv))))

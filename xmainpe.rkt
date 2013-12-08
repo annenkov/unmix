@@ -1,14 +1,18 @@
 #lang racket
 (require racket/mpair)
 (require "xpe.rkt"
-         "xggg.rkt"
+         (prefix-in ggg: "xggg.rkt")
          "x-misc.rkt")
 
-(define (umainpe:generate-residual-program o-file ann-prog goalsvv)
+(define (umainpe:generate-residual-program o-file ann-prog goalsvv [gen #f])
   (define o-port #f)
   (define pending #f)
   (define names #f)
   (define counts #f)
+  (define $specialize-fundef-$1
+    (if gen
+        (dynamic-require gen '$specialize-fundef-$1)
+        ggg:$specialize-fundef-$1))
   (define (generate-residual-program-pe)
     (let ((s-prog (caddr ann-prog))
           (d-prog (cadr ann-prog))
@@ -39,18 +43,19 @@
     (let ((%%123 ($specialize-fundef-$1 '())))
       (let ((fname %%123))
         (let ((%%124 `(,fname unquote goalsvv)))
-          (let ((conf %%124))
+          (let ((conf (pairs->mpairs %%124)))  ; converting to mutable
             (set! counts '())
             (set! pending '())
             (set! names '())
             (find-name! conf)
             (choose-conf-gn))))))
   (define (choose-conf-gn)
+    (print $specialize-fundef-$1)
     (if (null? pending)
       '()
       (let ((rest (cdr pending)) (conf (car pending)))
         (set! pending rest)
-        (let ((%%125 ($specialize-fundef-$1 conf)))
+        (let ((%%125 ($specialize-fundef-$1 (mpairs->pairs conf))))
           (let ([body (pairs->mpairs (cadr %%125))] ; converting to mutable
                 [dvn (car %%125)])
             (update! body)

@@ -151,24 +151,25 @@
 ;; Used to write target scheme/racket files.
 ;;
 (define (uio:list->pp-target-file file lst width)
-  (define (head-writer p)
-    (when settings:**lang-directive** 
-        (begin 
-          (fprintf p "~a" settings:**lang-directive** )
-          (newline p)
-          (newline p))))
-    (uio:list->pp-file file lst width head-writer))
+  (let ([lang-expr (if settings:**output-as-racket-module**
+                    (format "~a\n\n" settings:**lang-directive**)
+                    "")]
+        [provide-expr (if settings:**output-as-racket-module**
+                          (format "~a" '(provide (all-defined-out)))
+                          "")])
+    (uio:list->pp-file file lst width lang-expr provide-expr)))
 
 ;;
 ;; Pretty prints list "lst" into the file "name".
-;; The "head-writer" can be used to write some additional info before
-;; pretty printed list "lst".
+;; The "header" and "footer" can be used to provide some additional info
+;; before and after the pretty-printed list "lst".
 ;;
 
-(define (uio:list->pp-file file lst width [head-writer #f])
+(define (uio:list->pp-file file lst width [header ""] [footer ""])
   (let ((p (open-output-file file)))
-    (head-writer p)
+    (write-string header p)
     (uio:pp-list lst p)
+    (write-string footer p)
     (close-output-port p)))
 
 (define (uio:pp-list mexp* port)

@@ -1,5 +1,7 @@
 #lang racket
-(require racket/mpair)
+(require racket/mpair
+         racket/require-syntax)
+(require (prefix-in settings: "xsettings.rkt"))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;                                                                 ;;
 ;;  File:     xmisc.scm                                            ;;
@@ -259,5 +261,10 @@
 (provide-combination cadr cddr caaar caadr cadar caddr cdaar cdadr cddar cdddr
                      caaaar caaadr caadar caaddr cadaar cadadr caddar cadddr
                      cdaaar cdaadr cdadar cdaddr cddaar cddadr cdddar cddddr)
+
+;; Conditional import
+(define-require-syntax (by-mode stx)
+  (syntax-case stx ()
+    [(_ module) (datum->syntax stx (format "~a/~a" settings:**mode** (syntax->datum #'module)))]))
 
 (provide (all-defined-out))
