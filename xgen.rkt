@@ -2,15 +2,16 @@
 (require srfi/13)
 (require "x-misc.rkt"
          "xio.rkt"
-         "xmainpe.rkt"
-         "xpe.rkt"
+         ;"xmainpe.rkt"
+         ;"xpe.rkt"
          "xsettings.rkt"
-         "xggg.rkt"
+         ;"xggg.rkt"
          "xcgr.rkt"
          "xar.rkt"
          "xcgr.rkt"
          "xensg.rkt"
          (prefix-in settings: "xsettings.rkt"))
+(require-by-mode)
 
 (define (ugen:switch action)
   (define (make-res-filename file-names)

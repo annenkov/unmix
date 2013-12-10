@@ -263,8 +263,14 @@
                      cdaaar cdaadr cdadar cdaddr cddaar cddadr cdddar cddddr)
 
 ;; Conditional import
-(define-require-syntax (by-mode stx)
+;(define-require-syntax (by-mode stx)
+;  (syntax-case stx ()
+;    [(_ module) (datum->syntax stx (format "~a/~a" settings:**mode** (syntax->datum #'module)))]))
+
+(define-syntax (require-by-mode stx)
   (syntax-case stx ()
-    [(_ module) (datum->syntax stx (format "~a/~a" settings:**mode** (syntax->datum #'module)))]))
+    [(_) (if (eq? settings:**mode** 'iterative) 
+             (datum->syntax stx '(require "xmainpe.rkt" "xggg.rkt" "xpe.rkt"))
+             (datum->syntax stx '(require "recurs/xmainpe.rkt")))]))
 
 (provide (all-defined-out))

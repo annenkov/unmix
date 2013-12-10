@@ -12,10 +12,9 @@
 ;; Affects output program only if **output-as-racket-module** is #t
 (define **lang-directive** "#lang racket")
 
-(define-for-syntax iterative-mode-path ".")
-(define-for-syntax recursive-mode-path "recurs")
-
-(define-for-syntax **mode** iterative-mode-path)
+;; Switch UNMIX mode here
+(define-for-syntax **mode** 'iterative)
+;(define-for-syntax **mode** 'recursive)
 
 (provide (all-defined-out)
          (for-syntax **mode**))

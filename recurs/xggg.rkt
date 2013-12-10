@@ -1,3 +1,5 @@
+#lang racket
+
 (define ($start sv)
   `(,(umainpe:print-fundef!
        '$start
@@ -236,3 +238,37 @@
     `(car ,dv-$1)
     ($pe-exp-$7 sv-$1 (cdr sv-$2) `(cdr ,dv-$1))))
 
+(define (umainpe:print-fundef! fname var body)
+  (display ">")
+  (write `(,fname ,var = ,body) umainpe:o-port)
+  (newline umainpe:o-port)
+  (newline umainpe:o-port)
+  fname)
+
+(define (umainpe:find-name! fname sv)
+  (define (make-fname! fname)
+    (string->symbol
+      (string-append
+        (symbol->string fname)
+        "-$"
+        (number->string (get-free-count! fname)))))
+  (define (get-free-count! fname)
+    (let ((fname-descr (assq fname umainpe:counts)))
+      (if fname-descr
+        (let ((count (+ 1 (cdr fname-descr))))
+          (set-cdr! fname-descr count)
+          count)
+        (begin
+          (set! umainpe:counts `((,fname . 1) unquote umainpe:counts))
+          1))))
+  (let* ((conf `(,fname unquote sv))
+         (conf-descr (assoc conf umainpe:names))
+         (bool (not conf-descr)))
+    (if bool
+      (begin
+        (set! conf-descr `(,conf unquote (make-fname! fname)))
+        (set! umainpe:names `(,conf-descr unquote umainpe:names))
+        (display "<")))
+    `(,bool unquote (cdr conf-descr))))
+
+(provide (all-defined-out))

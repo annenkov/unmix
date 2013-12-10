@@ -1,3 +1,5 @@
+#lang racket
+
 (define ($specialize-fundef ann-prog sv)
   (let ((s-prog (caddr ann-prog))
         (d-prog (cadr ann-prog))
@@ -149,3 +151,4 @@
   (let ((vvtl (cdr vv)) (vvhd (car vv)) (vntl (cdr vn)) (vnhd (car vn)))
     (if (eq? vnhd vname) vvhd ($lookup-value vname vntl vvtl))))
 
+(provide (all-defined-out))
