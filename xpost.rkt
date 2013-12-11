@@ -25,17 +25,9 @@
         (newline)
         (set! program (uio:file->list src))
         (set! program (ucgr:main pgm pgm program))
-        ; TODO check later
-        ;(set! ucgr:main #f)
         (set! program (uar:main pgm pgm program))
-        ; TODO check later
-        ;(set! uar:main #f)
         (set! program (ucgr:main pgm pgm program))
-        ; TODO check later
-        ;(set! ucgr:main #f)
         (set! program (uensg:main pgm pgm program))
-        ; TODO check later
-        ;(set! uensg:main #f)
         (uio:list->pp-target-file dst program 79)
         (newline)
         (display "Target program has been written into ")
@@ -53,8 +45,6 @@
                   "CGR"))
            (prog (uio:file->list src)))
       (set! prog (ucgr:main src dst prog))
-      ; TODO check later
-      ;(set! ucgr:main #f)
       (uio:list->pp-target-file dst prog 79)
       (newline)
       (display "Target program has been written into ")
@@ -72,8 +62,6 @@
                   "AR"))
            (prog (uio:file->list src)))
       (set! prog (uar:main src dst prog))
-      ; TODO check later
-      ;(set! uar:main #f)
       (uio:list->pp-target-file dst prog 79)
       (newline)
       (display "Target program has been written into ")
@@ -91,8 +79,6 @@
                   "SCE"))
            (prog (uio:file->list src)))
       (set! prog (uensg:main src dst prog))
-      ; TODO check later
-      ;(set! uensg:main #f)
       (uio:list->pp-file dst prog 79)
       (newline)
       (display "Ensugared program has been written into ")

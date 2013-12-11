@@ -53,8 +53,10 @@ Most significant changes made during porting to Racket:
  - used Racket module system ("require" instead of "load");
  - added explicit conversion to mutable pairs in some places
    (Racket pair is immutable by default and "set-car!" and "set-cdr!"
-   can't be applied). Adde some macros and utils to handle mutable pairs.
- - target programs generated as Racket modules with ".rkt" extension;
+   can't be applied);
+ - added some macros and utils to handle mutable pairs;
+ - target programs generated as Racket modules with ".rkt" extension
+   (and can be ran using Racket);
  - Robert Glueck's recursive version (in "resurs" dir) merged to single
    "xmainpe.rkt" file (there are three files in v3.0: "xmainpe.scm",
    "xpe.scm", "xggg.scm");

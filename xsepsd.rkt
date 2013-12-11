@@ -28,15 +28,11 @@
   (newline)
   (display "Iterations: ")
   (let ((mc (ufcd:find-congruent-division mw-prog descr)))
-    ; TODO check later
-    ;(set! ufcd:find-congruent-division #f)
     (newline)
     (display "Unmixing Static and Dynamic Data")
     (newline)
     (check-input-division descr mc)    
     (let ((ann-prog (uann:make-annotated-program mw-prog mc)))
-      ; TODO check later
-      ;(set! uann:make-annotated-program #f)
       (display "-- Done --")
       (newline)
       ann-prog)))

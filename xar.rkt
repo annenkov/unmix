@@ -31,8 +31,6 @@
   (newline)
   (display "Iterations: ")
   (set! types (mpairs->pairs (uarta:analyze-argument-types prog))) ; converting back to regular pairs
-  ; TODO Check later
-  ;(set! uarta:analyze-argument-types #f)
   (newline)
   (display "Structure of Arguments:")
   (newline)
@@ -40,9 +38,7 @@
   (display "Analysis of the Parameter Accesses")
   (newline)  
   (display "Iterations: ")
-  (uaraa:analyze-parameter-access! prog (pairs->mpairs types)) ; converting to mutable
-  ; TODO Check later
-  ;(set! uaraa:analyze-parameter-access! #f)
+  (uaraa:analyze-parameter-access! prog (pairs->mpairs types)) ; converting to mutable  
   (newline)
   (display "Structure of Arguments:")
   (newline)
@@ -50,8 +46,6 @@
   (display "Splitting of Parameters")
   (newline)
   (set! prog (uarps:optimize prog types))
-  ; TODO Check later
-  ;(set! uarps:optimize #f)
   (display "-- Done --")
   (newline)
   prog)

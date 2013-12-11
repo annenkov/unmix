@@ -14,16 +14,12 @@
 ;;            Mathematics, the USSR Acedemy of Sciences,           ;;
 ;;            Moscow.                                              ;;
 ;;  Created:  11 April 1990                                        ;;
-;;  Revised:  July 1990, December 1992, October 1993               ;;
+;;  Revised:  July 1990, December 1992, October 1993, December 2013;;
 ;;                                                                 ;;
 ;;  Contents: The main function of Unmix.                          ;;
 ;;                                                                 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-; TODO check later
-;(define upre:switch #f)
-;(define ugen:switch #f)
-;(define upost:switch #f)
 (define uctmw:Scheme-to-Mixwell #f)
 (define uctmwrl:rem-let-prog #f)
 (define uctmwrl:cut-let-prog #f)
@@ -54,10 +50,6 @@
   (ux:main))
 
 (define (ux:main)
-  ; TODO check later
-  ;(set! upre:switch  #f)
-  ;(set! ugen:switch  #f)
-  ;(set! upost:switch #f)
   (set! uctmw:Scheme-to-Mixwell #f)
   (set! uctmwrl:rem-let-prog    #f)
   (set! uctmwrl:cut-let-prog    #f)
@@ -113,8 +105,6 @@
 (define (ux:pre:main)
   (define (pre-switch action)    
     (upre:switch action)
-    ; TODO check later
-    ;(set! upre:switch #f)
     'OK)
   (let ((reply
     (uio:display-menu
@@ -169,8 +159,6 @@
 (define (ux:post:main)
   (define (post-switch action)
     (upost:switch action)
-    ; TODO check later
-    ;(set! upost:switch #f)
     'OK)
   (let ((reply
     (uio:display-menu

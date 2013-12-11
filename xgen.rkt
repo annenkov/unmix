@@ -179,17 +179,9 @@
       (newline)
       (set! program (uio:file->list src))
       (set! program (ucgr:main pgm pgm program))
-      ; TODO Check later
-      ;(set! ucgr:main #f)
       (set! program (uar:main pgm pgm program))
-      ; TODO Check later
-      ;(set! uar:main #f)
       (set! program (ucgr:main pgm pgm program))
-      ; TODO Check later
-      ;(set! ucgr:main #f)     
       (set! program (uensg:main pgm pgm program))
-      ; TODO Check later
-      ;(set! uensg:main #f)
       (uio:list->pp-target-file dst program 79)
       (newline)
       (display "Target program has been written into ")

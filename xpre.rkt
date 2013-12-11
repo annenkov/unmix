@@ -79,14 +79,8 @@
     (display dst)
     (newline)
     (set! prog (uctmw:compile-program prog))
-    ; TODO check later
-    ;(set! uctmw:compile-program #f)
     (set! prog (uctmwrl:rem-let-prog prog))
-    ; TODO check later
-    ;(set! uctmwrl:rem-let-prog #f)
     (set! prog (uctmwrl:cut-let-prog prog))
-    ; TODO check later
-    ;(set! uctmwrl:cut-let-prog #f)
     (display "-- Done --")
     (newline)
     prog)
@@ -116,19 +110,12 @@
     (newline)
     (set! program
       (usepsd:unmix-static-and-dynamic program descr))
-    ; TODO check later
-    ;(set! usepsd:unmix-static-and-dynamic #f)
     (newline)
     (set! program
       (upiu:prevent-infinite-unfolding! program))
-    ; TODO check later
-    ;(set! upiu:prevent-infinite-unfolding! #f)
     (newline)
     (set! program
       (upcd:prevent-call-duplication! program))
-    ; TODO check later
-    ;(set! upcd:prevent-call-duplication! #f)
-    ;(set! uresfn:collect-residual-functions #f)
     program)
   (define (request-descr)
     (map (lambda (x)
