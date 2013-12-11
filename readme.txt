@@ -1,7 +1,8 @@
 
 
                          THE SPECIALIZER UNMIX
-                           (for SCM Scheme)
+                             v4.0 for Racket
+               (based on v3.0 https://code.google.com/p/unmix/)
 
                           Sergei A.Romanenko
 
@@ -9,9 +10,12 @@
                       Russian Academy of Sciences
                Miusskaya Sq.4, SU-125047, Moscow, Russia
 
+               Ported to Racket by Danil Annenkov, Irkutsk, Russia
+                          annenkov@ib-soft.ru
+
 
                               July, 1990
-                 Revised: December 1992, December 1993
+             Revised: December 1992, December 1993, December 2013
 
 
 
@@ -40,6 +44,22 @@ correspondence, and other documents without restriction or obligation.
 
 `Unmix` is provided `as is` without express or implied warranty.
 
+
+VERSION 4.0 CHANGES
+===================
+All the functionality of v3.0 is available.
+
+Most significant changes made during porting to Racket:
+ - used Racket module system ("require" instead of "load");
+ - added explicit conversion to mutable pairs in some places
+   (Racket pair is immutable by default and "set-car!" and "set-cdr!"
+   can't be applied). Adde some macros and utils to handle mutable pairs.
+ - target programs generated as Racket modules with ".rkt" extension;
+ - Robert Glueck's recursive version (in "resurs" dir) merged to single
+   "xmainpe.rkt" file (there are three files in v3.0: "xmainpe.scm",
+   "xpe.scm", "xggg.scm");
+ - added "xsettings.rkt". There you can set iterative or recursive mode,
+   target program output format etc;
 
 
 WHAT IS UNMIX?

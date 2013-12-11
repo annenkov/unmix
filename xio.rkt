@@ -47,11 +47,6 @@
   (define title
    '())
 
-;  '("UNMIX 3.0 (November 1993) for MacGambit Scheme"
-;   "   Sergei A.Romanenko, Keldysh Institute of Applied Mathematics,"
-;   "   Russian Academy of Sciences, Miusskaya Sq.4, 125047, Moscow, Russia"
-;            ))
-
   (define *line* 1)
 
   (for-each (lambda (item) (display item) (newline)
