@@ -76,7 +76,7 @@
         "Residual program generation"
         "pOstprocessing"
         ""
-        "Compile SEX to SCM"
+        "Compile SEX to RKT"
         "eValuating Scheme expression"
         ""
         "Quit Unmix"

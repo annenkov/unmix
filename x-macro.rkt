@@ -255,25 +255,34 @@
               (else
                 (let ((association (massq (car form) *ux:macro-expanders*)))
                   (if (and association
-                           (cdr association))
-                      (ux:macroexpand ((cdr association) form))
+                           (mcdr association))
+                      (ux:macroexpand ((mcdr association) form))
                       (begin
                         (check-syntax '(e e ...) form)
                         `(,key . ,(map ux:macroexpand info)))))))))))
 
 (define (ux:macroexpand-file ipath opath)
-  (call-with-input-file
-    ipath
-    (lambda (iport)
-      (call-with-output-file
-        opath
-        (lambda (oport)
-          (do ((o (read iport) (read iport)))
-              ((eof-object? o))
-              (pretty-print (ux:macroexpand o) oport)
-              (newline oport)
+  (let ([lang-expr (if settings:**output-as-racket-module**
+                       (format "~a\n\n" settings:**lang-directive**)
+                       "")]
+        [provide-expr (if settings:**output-as-racket-module**
+                          (format "~a" '(provide (all-defined-out)))
+                          "")])
+    (call-with-input-file
+        ipath
+      (lambda (iport)
+        (call-with-output-file
+            opath
+          (lambda (oport)
+            (write-string lang-expr oport)
+            (do ((o (read iport) (read iport)))
+              ((eof-object? o))             
+              (pretty-write (ux:macroexpand o) oport)
+              (newline oport)              
               (display "*")
-              ))))))
+              )
+            (write-string provide-expr oport)
+            ))))))
 
 (define (sex file-name)
   (let ((sex   (string-append file-name ".sex"))
