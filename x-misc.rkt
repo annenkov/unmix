@@ -235,6 +235,13 @@
       (cons (mpairs->pairs (mcar p)) (mpairs->pairs (mcdr p)))
       p))
 
+(define (mpairs->pairs* p)
+  (cond [(mpair? p) 
+         (cons (mpairs->pairs* (mcar p)) (mpairs->pairs* (mcdr p)))]
+        [(pair? p) 
+         (cons (mpairs->pairs* (car p)) (mpairs->pairs* (cdr p)))]
+        [else p]))
+
 (define (mfoldl-map f u g lst)
   (let loop ((u u) (lst lst))
     (if (null? lst)

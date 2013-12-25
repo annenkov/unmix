@@ -4,8 +4,12 @@
          (prefix-in ggg: "xggg.rkt")
          "x-misc.rkt")
 
-(define (umainpe:generate-residual-program o-file ann-prog goalsvv [gen #f])
-  (define o-port #f)
+(define (umainpe:generate-residual-program o-file ann-prog goalsvv [gen #f]) 
+  (let ([o-port (open-output-file o-file)])
+    (umainpe:generate-residual-program* o-port ann-prog goalsvv gen)
+    (close-output-port o-port)))
+
+(define (umainpe:generate-residual-program* o-port ann-prog goalsvv [gen #f])
   (define pending #f)
   (define names #f)
   (define counts #f)
@@ -102,10 +106,8 @@
           (set-mcdr! fname-descr count)
           count)
         (begin (set! counts (pairs->mpairs `((,fname . 1) unquote counts))) 1)))) ; converting to mutable
-  (set! o-port (open-output-file o-file))
   (if (null? ann-prog)
     (generate-residual-program-gn)
-    (generate-residual-program-pe))
-  (close-output-port o-port))
+    (generate-residual-program-pe)))
 
 (provide (all-defined-out))

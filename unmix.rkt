@@ -10,7 +10,7 @@
    "(based on UNMIX 3.0: https://code.google.com/p/unmix/)"
    "   Sergei A.Romanenko, Keldysh Institute of Applied Mathematics,"
    "   Russian Academy of Sciences, Miusskaya Sq.4, 125047, Moscow, Russia"
-   "   Ported to Racket by Danil Annenkov (annekov@ib-soft.ru)"
+   "   Ported to Racket by Danil Annenkov (annenkov@ib-soft.ru)"
    "")
  )
 

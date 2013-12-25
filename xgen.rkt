@@ -2,10 +2,7 @@
 (require srfi/13)
 (require "x-misc.rkt"
          "xio.rkt"
-         ;"xmainpe.rkt"
-         ;"xpe.rkt"
          "xsettings.rkt"
-         ;"xggg.rkt"
          "xcgr.rkt"
          "xar.rkt"
          "xcgr.rkt"
@@ -70,11 +67,7 @@
            (static-inputs (list program)))
       (pe-aux ann-file-name (list ann-file-name) res program static-inputs)))
   (define (generate-residual-program dst program static-inputs [gen #f])
-    (umainpe:generate-residual-program dst program static-inputs gen)
-    ;TODO check later
-    ;(set! umainpe:generate-residual-program #f)
-    ;(set! xapply #f)
-    )
+    (umainpe:generate-residual-program dst program static-inputs gen))
   (define (pe-aux src data-file-names res program static-inputs)
     (let ((dst (string-append res ".mwr")) (scm (string-append res settings:**program-file-ext**)))
       (check-static-inputs program static-inputs)
