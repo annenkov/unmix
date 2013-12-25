@@ -269,11 +269,6 @@
                      caaaar caaadr caadar caaddr cadaar cadadr caddar cadddr
                      cdaaar cdaadr cdadar cdaddr cddaar cddadr cdddar cddddr)
 
-;; Conditional import
-;(define-require-syntax (by-mode stx)
-;  (syntax-case stx ()
-;    [(_ module) (datum->syntax stx (format "~a/~a" settings:**mode** (syntax->datum #'module)))]))
-
 (define-syntax (require-by-mode stx)
   (syntax-case stx ()
     [(_) (if (eq? settings:**mode** 'iterative) 

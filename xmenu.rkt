@@ -131,7 +131,6 @@
 (define (ux:gen:main)
   (define (gen-switch action)    
     (ugen:switch action)
-    ;(set! ugen:switch #f)
     'OK)
   (let ((reply
     (uio:display-menu
