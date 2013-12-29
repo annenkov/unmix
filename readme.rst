@@ -34,17 +34,17 @@ Permission to use, copy, modify, and distribute this software and its
 documentation for any personal or educational use without fee is hereby
 granted, provided that:
 
-  * This copyright notice is retained in both source code and
-    supporting documentation.
+* This copyright notice is retained in both source code and
+  supporting documentation.
 
-  * Modified versions of this software cannot be redistributed unless
-    accompanied by a complete history (date, author, description) of
-    modifications made; the intension here is to give appropriate
-    credit to those involved, whilst simultaneously ensuring that any
-    recipient can determine the origin of the software.
+* Modified versions of this software cannot be redistributed unless
+  accompanied by a complete history (date, author, description) of
+  modifications made; the intension here is to give appropriate
+  credit to those involved, whilst simultaneously ensuring that any
+  recipient can determine the origin of the software.
 
-  * These same conditions will also be applied to any software system
-    derived either in full or in part from this system.
+* These same conditions will also be applied to any software system
+  derived either in full or in part from this system.
 
 The name `Unmix` is not a trademark, registered or otherwise, and you
 are free to mention this name in published material, public and private
@@ -59,18 +59,19 @@ VERSION 4.0 CHANGES
 All the functionality of v3.0 is available.
 
 Most significant changes made during porting to Racket:
- - used Racket module system ("require" instead of "load");
- - added explicit conversion to mutable pairs in some places
-   (Racket pair is immutable by default and "set-car!" and "set-cdr!"
-   can't be applied);
- - added some macros and utils to handle mutable pairs;
- - target programs generated as Racket modules with ".rkt" extension
-   (and can be ran using Racket);
- - Robert Glueck's recursive version (in "resurs" dir) merged to single
-   "xmainpe.rkt" file (there are three files in v3.0: "xmainpe.scm",
-   "xpe.scm", "xggg.scm");
- - added "xsettings.rkt". There you can set iterative or recursive mode,
-   target program output format etc;
+
+* used Racket module system ("require" instead of "load");
+* added explicit conversion to mutable pairs in some places
+  (Racket pair is immutable by default and "set-car!" and "set-cdr!"
+  can't be applied);
+* added some macros and utils to handle mutable pairs;
+* target programs generated as Racket modules with ".rkt" extension
+  (and can be ran using Racket);
+* Robert Glueck's recursive version (in "resurs" dir) merged to single
+  "xmainpe.rkt" file (there are three files in v3.0: "xmainpe.scm",
+  "xpe.scm", "xggg.scm");
+* added "xsettings.rkt". There you can set iterative or recursive mode,
+  target program output format etc;
 
 
 WHAT IS UNMIX?
@@ -152,10 +153,10 @@ THE STRUCTURE OF THE POSTPROCESSOR
 
 The postprocessing comprises the following stages.
 
-    1) the first Call Graph Reduction,
-    2) Arity Raising,
-    3) the second Call Graph Reduction,
-    4) Compilation from Mixwell into Scheme.
+1) the first Call Graph Reduction,
+2) Arity Raising,
+3) the second Call Graph Reduction,
+4) Compilation from Mixwell into Scheme.
 
 More information may be found in the source programs of Unmix.
 
@@ -167,7 +168,6 @@ HOW TO RUN UNMIX?
 This version of Unmix can be run under Racket.
 
 Use
-
    ::
 
     racket unmix.scm
@@ -460,7 +460,7 @@ extended with the following macros.
 
 GENERALIZED CASE-EXPRESSION
 
-   ::
+::
 
         (MATCH  (arg ...)
                 (pat ...  & guard => exp ...) ...)
@@ -469,7 +469,7 @@ The expressions "arg ..." are evaluated to produce S-expressions "S-exp
 ...". "S-exp ..." are then matched against the corresponding patterns
 "pat ...". If the matching succeeds for some clause
 
-   ::
+::
 
          (pat ... & guard => exp ...)
 
@@ -501,7 +501,7 @@ The patterns have the following syntax::
 
 GENERALIZED LET-EXPRESSION
 
-   ::
+::
 
         (WITH  ((pat arg) ...) exp ...)
 
@@ -517,20 +517,20 @@ of the form MATCH.
 
 The form
 
-   ::
+::
 
         (WITH* ((pat1 arg1) . (pat arg) ...) exp ...)
 
 is equivalent to
 
-   ::
+::
 
         (WITH ((pat1 arg1)) (WITH* ((pat arg) ...) exp ...)
 
 
 RESTRICTED GENERALIZED CASE-EXPRESSION
 
-   ::
+::
 
         (SELECT (arg ...)
                 (rpat ...  & guard => exp ...) ...)
@@ -539,7 +539,7 @@ The expressions "arg ..." are evaluated to produce S-expressions "S-exp
 ...". "S-exp ..." are then matched against the corresponding restricted
 patterns "rpat ...". If the matching succeeds for some clause
 
-   ::
+::
 
         (rpat ... & guard => exp ...)
 
@@ -580,7 +580,7 @@ compiled into efficient code.
 
 RCALL
 
-   ::
+::
 
         (RCALL (fname arg ...))
 
@@ -591,7 +591,7 @@ construct is equivalent to (fname arg ...).
 
 GENERALIZE
 
-   ::
+::
 
         (GENERALIZE exp)
 
