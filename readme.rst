@@ -1,26 +1,34 @@
+THE SPECIALIZER UNMIX
+=====================
+.. image:: https://api.travis-ci.org/annenkov/unmix.png
+   :alt: Build status
 
+.. role:: align-center
 
-                         THE SPECIALIZER UNMIX
-                             v4.0 for Racket
-               (based on v3.0 https://code.google.com/p/unmix/)
+:align-center:`v4.0 for Racket`
 
-                          Sergei A.Romanenko
+(based on v3.0 https://code.google.com/p/unmix/)
 
-               Keldysh Institute of Applied Mathematics
-                      Russian Academy of Sciences
-               Miusskaya Sq.4, SU-125047, Moscow, Russia
+Sergei A.Romanenko
 
-               Ported to Racket by Danil Annenkov, Irkutsk, Russia
-                          annenkov@ib-soft.ru
+Keldysh Institute of Applied Mathematics
 
+Russian Academy of Sciences
 
-                              July, 1990
-             Revised: December 1992, December 1993, December 2013
+Miusskaya Sq.4, SU-125047, Moscow, Russia
+
+Ported to Racket by Danil Annenkov, Irkutsk, Russia
+
+annenkov@ib-soft.ru
+
+July, 1990
+
+Revised: December 1992, December 1993, December 2013
 
 
 
 COPYRIGHT NOTICE
-================
+----------------
 
 Permission to use, copy, modify, and distribute this software and its
 documentation for any personal or educational use without fee is hereby
@@ -46,7 +54,8 @@ correspondence, and other documents without restriction or obligation.
 
 
 VERSION 4.0 CHANGES
-===================
+-------------------
+
 All the functionality of v3.0 is available.
 
 Most significant changes made during porting to Racket:
@@ -65,7 +74,7 @@ Most significant changes made during porting to Racket:
 
 
 WHAT IS UNMIX?
-==============
+--------------
 
 If a program has several input parameters, it can be "specialized"
 with respect to the values of some of the parameters, in which case
@@ -106,7 +115,7 @@ corresponding static parameters.
 
 
 THE STRUCTURE OF THE PREPROCESSOR
-=================================
+---------------------------------
 
 The preprocessing consists of several stages.
 
@@ -128,7 +137,7 @@ being unfolded.
 
 
 THE STRUCTURE OF THE GENERATOR
-==============================
+------------------------------
 
 The generator consists of "partial evaluator", which generates residual
 program by symbolically evaluating Mixwell expressions, and
@@ -139,7 +148,7 @@ Scheme.
 
 
 THE STRUCTURE OF THE POSTPROCESSOR
-==================================
+----------------------------------
 
 The postprocessing comprises the following stages.
 
@@ -153,11 +162,14 @@ More information may be found in the source programs of Unmix.
 
 
 HOW TO RUN UNMIX?
-=================
+-----------------
 
 This version of Unmix can be run under Racket.
 
-Use 
+Use
+
+   ::
+
     racket unmix.scm
 
 to run UNMIX from project root directory.
@@ -165,10 +177,11 @@ to run UNMIX from project root directory.
 UNMIX can be ran using DrRacket: load unmix.scm to environment and run it (press F5).
 
 If UNMIX ran from project root, use relative paths to programs to be specialized.
-For example: 
-    examples/zip
+   For example::
 
-You can also use unmix.scm from directories with programs to be specialized. 
+      examples/zip
+
+You can also use unmix.scm from directories with programs to be specialized.
 In that case all program files can be accessed without specifying the path, just file name.
 
 When Unmix starts it displays a menu on the screen, which provides further information.
@@ -176,7 +189,7 @@ When Unmix starts it displays a menu on the screen, which provides further infor
 
 
 THE INPUT LANGUAGE OF UNMIX
-===========================
+---------------------------
 
 Unmix itself is written in "Scheme with EXtensions" (files with the
 extention sex). Before being loaded and executed, the sex-files have to
@@ -188,32 +201,31 @@ Scheme directly, so that they are contained in files with the extension
 scm and needn't be compiled.
 
 Here is the syntax of the subset of Scheme accepted by the specializer
-Unmix:
+Unmix::
 
+   <Program> ::=  <ProcDef> <ProcDef>*               ;; Program
 
-<Program> ::=  <ProcDef> <ProcDef>*               ;; Program
+   <ProcDef>  ::=  (define (<Pname> <Vname>*) <Exp>) ;; Procedure
+                                                     ;; definition
 
-<ProcDef>  ::=  (define (<Pname> <Vname>*) <Exp>) ;; Procedure
-                                                  ;; definition
+   <Exp>     ::=  <Vname>                      ;; Variable
+             |    (quote <S-expression>)       ;; Constant
+             |    <Literal>                    ;; Literal constant
+             |    (if <Exp> <Exp> <Exp>)       ;; Conditional
+             |    (let (<Binding>*) <Exp>)     ;; Let-expression
+             |    (rcall (<Pname> <Exp>*))     ;; Residual call
+             |    (generalize <Exp>)           ;; Generalizer
+             |    (<Pname> <Exp>*)             ;; Procedure call
+             |    (<Mname> <S-Expression>*)    ;; Macro
 
-<Exp>     ::=  <Vname>                      ;; Variable
-          |    (quote <S-expression>)       ;; Constant
-          |    <Literal>                    ;; Literal constant
-          |    (if <Exp> <Exp> <Exp>)       ;; Conditional
-          |    (let (<Binding>*) <Exp>)     ;; Let-expression
-          |    (rcall (<Pname> <Exp>*))     ;; Residual call
-          |    (generalize <Exp>)           ;; Generalizer
-          |    (<Pname> <Exp>*)             ;; Procedure call
-          |    (<Mname> <S-Expression>*)    ;; Macro
+   <Binding> ::=  (<Vname> <Exp>)              ;; Local binding
 
-<Binding> ::=  (<Vname> <Exp>)              ;; Local binding
+   <Pname>   ::=  <Symbol>                     ;; Procedure name
+   <Vname>   ::=  <Symbol>                     ;; Variable name
+   <Mname>   ::=  <Symbol>                     ;; Macro name
 
-<Pname>   ::=  <Symbol>                     ;; Procedure name
-<Vname>   ::=  <Symbol>                     ;; Variable name
-<Mname>   ::=  <Symbol>                     ;; Macro name
-
-<Literal> ::= <boolean> | <number> | <character>
-          |   <string> | <vector>
+   <Literal> ::= <boolean> | <number> | <character>
+             |   <string> | <vector>
 
 
 All procedures called in the program must be without side-effects. For
@@ -241,25 +253,25 @@ tool for defining macro extensions.
 
 
 THE LANGUAGE MIXWELL
-====================
+--------------------
 
 Mixwell is the internal language of the specializer Unmix. Here is its
-syntax:
+syntax::
 
-<Program> ::=  <ProcDef> <ProcDef>*
+   <Program> ::=  <ProcDef> <ProcDef>*
 
-<ProcDef> ::=  (<Pname> (<Vname>*) = <Exp>)
+   <ProcDef> ::=  (<Pname> (<Vname>*) = <Exp>)
 
-<Exp>     ::=  <Vname>                      ;; Variable
-          |    (quote <S-expression>)       ;; Constant
-          |    (if <Exp> <Exp> <Exp>)       ;; Conditional
-          |    (call  <Pname> <Exp>*)       ;; Defined function call
-          |    (rcall <Pname> <Exp>*)       ;; Defined function call
-          |    (xcall <Pname> <Exp>*)       ;; External function call
-          |    (<Pname> <Exp>*)             ;; External function call
+   <Exp>     ::=  <Vname>                      ;; Variable
+             |    (quote <S-expression>)       ;; Constant
+             |    (if <Exp> <Exp> <Exp>)       ;; Conditional
+             |    (call  <Pname> <Exp>*)       ;; Defined function call
+             |    (rcall <Pname> <Exp>*)       ;; Defined function call
+             |    (xcall <Pname> <Exp>*)       ;; External function call
+             |    (<Pname> <Exp>*)             ;; External function call
 
-<Pname>   ::=  <Symbol>                     ;; Procedure name
-<Vname>   ::=  <Symbol>                     ;; Variable name
+   <Pname>   ::=  <Symbol>                     ;; Procedure name
+   <Vname>   ::=  <Symbol>                     ;; Variable name
 
 The construct (call <Pname> <Exp>*) is a call on the procedure <Pname>
 defined in the program, which will be unfolded during partial
@@ -277,31 +289,33 @@ omitted and the construct takes the form (<Pname> <Exp>*).
 
 
 THE LANGUAGE MIXWELL-ANN
-========================
+------------------------
 
-<Ann-Program> ::=
-    <RP-Names> <D-Program> <S-Program>      ;; Program
-<RP-Names>    ::=  (<Pname>*)               ;; Residual procedure
-                                               ;; names
-<D-Program>   ::=                           ;; Dynamic program
-    (<A-ProcDef> <A-ProcDef>*)
-<S-Program>   ::=  (<ProcDef>*)             ;; Static program
-<A-ProcDef>   ::=
-    (<Pname> <ParList> <ParList> = <A-Exp>) ;; Annotated procedure
-                                               ;; definition
-<ParList>     ::=  (<Vname>*)               ;; Parameter list
+::
 
-<A-Exp>  ::=
-    <Vname>                                 ;; Variable
-  | (static <Exp>)                          ;; Static subexpression
-  | (ifs <Exp> <A-Exp> <A-Exp>)             ;; Static conditional
-  | (ifd <A-Exp> <A-Exp> <A-Exp>)           ;; Dynamic conditional
-  | (call  <Pname> (<Exp>*) (<A-Exp>*))     ;; Unfoldable defined
-                                               ;; function call
-  | (rcall <Pname> (<Exp>*) (<A-Exp>*))     ;; Residual defined
-                                               ;; function call
-  | (xcall <Pname> <A-Exp>*)                ;; External function call
-  | (<Pname> <A-Exp>*)                      ;; External function call
+   <Ann-Program> ::=
+       <RP-Names> <D-Program> <S-Program>      ;; Program
+   <RP-Names>    ::=  (<Pname>*)               ;; Residual procedure
+                                                  ;; names
+   <D-Program>   ::=                           ;; Dynamic program
+       (<A-ProcDef> <A-ProcDef>*)
+   <S-Program>   ::=  (<ProcDef>*)             ;; Static program
+   <A-ProcDef>   ::=
+       (<Pname> <ParList> <ParList> = <A-Exp>) ;; Annotated procedure
+                                                  ;; definition
+   <ParList>     ::=  (<Vname>*)               ;; Parameter list
+
+   <A-Exp>  ::=
+       <Vname>                                 ;; Variable
+     | (static <Exp>)                          ;; Static subexpression
+     | (ifs <Exp> <A-Exp> <A-Exp>)             ;; Static conditional
+     | (ifd <A-Exp> <A-Exp> <A-Exp>)           ;; Dynamic conditional
+     | (call  <Pname> (<Exp>*) (<A-Exp>*))     ;; Unfoldable defined
+                                                  ;; function call
+     | (rcall <Pname> (<Exp>*) (<A-Exp>*))     ;; Residual defined
+                                                  ;; function call
+     | (xcall <Pname> <A-Exp>*)                ;; External function call
+     | (<Pname> <A-Exp>*)                      ;; External function call
 
 
 EXAMPLES
@@ -312,26 +326,25 @@ several files containing a number of example programs to be
 specialized.  Here we list the programs with some suggestions about the
 way in which they can be specialized.
 
---------------------------------------------------------------------
-|  Program            |  Source     |  Parameter   |  Static data  |
-|                     |  file       |  description |  files        |
---------------------------------------------------------------------
-|                     |             |              |               |
-|  Zipper             |  zip.sex    |  SD          |  zip123.dat   |
-|  Maximum substring  |  mcs.sex    |  SD          |  mcs123.dat   |
-|  MP Interpreter     |  mp.sex     |  SD          |  mprev.dat    |
-|  TM Interpreter     |  tm.sex     |  SDDD        |  tmtst.dat    |
-|  Parser             |  prs.sex    |  SD          |  prsexp.dat   |
-|                     |             |              |               |
---------------------------------------------------------------------
++---------------------+-------------+----------------------+---------------+
+|Program              |Source file  |Parameter description |  Static data  |
++=====================+=============+======================+===============+
+|  Zipper             |  zip.sex    |  SD                  |  zip123.dat   |
++---------------------+-------------+----------------------+---------------+
+|  Maximum substring  |  mcs.sex    |  SD                  |  mcs123.dat   |
++---------------------+-------------+----------------------+---------------+
+|  MP Interpreter     |  mp.sex     |  SD                  |  mprev.dat    |
++---------------------+-------------+----------------------+---------------+
+|  TM Interpreter     |  tm.sex     |  SDDD                |  tmtst.dat    |
++---------------------+-------------+----------------------+---------------+
+|  Parser             |  prs.sex    |  SD                  |  prsexp.dat   |
++---------------------+-------------+----------------------+---------------+
 
 
 REFERENCES
-==========
+----------
 
-[Barzdin 88] G.Barzdin. Mixed Computation and Compiler Basis. In
-   D.Bjorner, A.P.Ershov and N.D.Jones, editors, Partial Evaluation and
-   Mixed Computation, pages 15-26, North-Holland, 1988.
+[Barzdin 88] G.Barzdin. Mixed Computation and Compiler Basis. In D.Bjorner, A.P.Ershov and N.D.Jones, editors, Partial Evaluation and Mixed Computation, pages 15-26, North-Holland, 1988.
 
 [Beckman 76] L.Beckman, A.Haraldson, O.Oskarsson, E.Sandewall. A Partial
    Evaluator, and Its Use as a Programming Tool. Artificial
@@ -439,13 +452,15 @@ REFERENCES
 
 
 APPENDIX. SOME MACROS USED IN UNMIX
-===================================
+-----------------------------------
 
 Unmix, as well as the example programs, has been written in Scheme
 extended with the following macros.
 
 
 GENERALIZED CASE-EXPRESSION
+
+   ::
 
         (MATCH  (arg ...)
                 (pat ...  & guard => exp ...) ...)
@@ -454,16 +469,18 @@ The expressions "arg ..." are evaluated to produce S-expressions "S-exp
 ...". "S-exp ..." are then matched against the corresponding patterns
 "pat ...". If the matching succeeds for some clause
 
+   ::
+
          (pat ... & guard => exp ...)
 
-the variables in "pat ..." get bound to the corresponding 
-subexpressions in "S-exp ...", and then the expression "guard" is 
-evaluated in the extended environment. If the result of "guard" is not 
-#f, the expressions "exp ..." are evaluated in the extended 
-environment, otherwise the next clause is tried.  If the guard is #t, 
+the variables in "pat ..." get bound to the corresponding
+subexpressions in "S-exp ...", and then the expression "guard" is
+evaluated in the extended environment. If the result of "guard" is not
+#f, the expressions "exp ..." are evaluated in the extended
+environment, otherwise the next clause is tried.  If the guard is #t,
 "& guard" may be omitted.
 
-The patterns have the following syntax:
+The patterns have the following syntax::
 
    <pat> ::= '<S-exp>             matches <S-exp>.
            | <literal>            matches <literal>.
@@ -484,6 +501,8 @@ The patterns have the following syntax:
 
 GENERALIZED LET-EXPRESSION
 
+   ::
+
         (WITH  ((pat arg) ...) exp ...)
 
 The expressions "arg ..." are evaluated to produce S-expressions "S-exp
@@ -498,14 +517,20 @@ of the form MATCH.
 
 The form
 
+   ::
+
         (WITH* ((pat1 arg1) . (pat arg) ...) exp ...)
 
 is equivalent to
+
+   ::
 
         (WITH ((pat1 arg1)) (WITH* ((pat arg) ...) exp ...)
 
 
 RESTRICTED GENERALIZED CASE-EXPRESSION
+
+   ::
 
         (SELECT (arg ...)
                 (rpat ...  & guard => exp ...) ...)
@@ -514,44 +539,48 @@ The expressions "arg ..." are evaluated to produce S-expressions "S-exp
 ...". "S-exp ..." are then matched against the corresponding restricted
 patterns "rpat ...". If the matching succeeds for some clause
 
+   ::
+
         (rpat ... & guard => exp ...)
 
-the variables in "pat ..." get bound to the corresponding 
-subexpressions in "S-exp ...", and then the expression "guard" is 
-evaluated in the extended environment. If the result of "guard" is not 
-#f, the expressions "exp ..." are evaluated in the extended 
-environment, otherwise the next clause is tried. If the guard is #t, "& 
+the variables in "pat ..." get bound to the corresponding
+subexpressions in "S-exp ...", and then the expression "guard" is
+evaluated in the extended environment. If the result of "guard" is not
+#f, the expressions "exp ..." are evaluated in the extended
+environment, otherwise the next clause is tried. If the guard is #t, "&
 guard" may be omitted.
 
-The syntax of restricted patterns coincides with that of the ordinary 
-patterns appearing in the construct MATCH described above, but their 
+The syntax of restricted patterns coincides with that of the ordinary
+patterns appearing in the construct MATCH described above, but their
 meaning is slightly different.
 
-If a restricted pattern <pat> doesn't have the form (<pat'> . <pat''>), 
+If a restricted pattern <pat> doesn't have the form (<pat'> . <pat''>),
 it has the same meaning as the ordinary pattern <pat>.
 
-If an S-expression <S-exp> is not a pair, the result of matching 
-<S-exp> against a pattern (<pat'> . <pat''>) is unspecified (i.e.  
-matching <S-exp> against such a pattern may produce either an error or 
+If an S-expression <S-exp> is not a pair, the result of matching
+<S-exp> against a pattern (<pat'> . <pat''>) is unspecified (i.e.
+matching <S-exp> against such a pattern may produce either an error or
 unpredictable results).
 
-If an S-expression <S-exp> is a pair (<S-exp'> . <S-exp''>), and a 
-pattern <pat> has the form (<pat'> . ()), then <S-exp> matches <pat>, 
-iff <S-exp'> matches <pat'>. In other words, a restricted pattern of 
-the form (<pat'> . ()) is completely equivalent to the restricted 
+If an S-expression <S-exp> is a pair (<S-exp'> . <S-exp''>), and a
+pattern <pat> has the form (<pat'> . ()), then <S-exp> matches <pat>,
+iff <S-exp'> matches <pat'>. In other words, a restricted pattern of
+the form (<pat'> . ()) is completely equivalent to the restricted
 pattern (<pat'> . _).
 
-If an S-expression <S-exp> is a pair (<S-exp'> . <S-exp''>), and a 
-pattern has the form (<pat'> . <pat''>), where <pat''> is not (), then 
-<S-exp> matches <pat>, iff <S-exp'> matches <pat'> and <S-exp''> 
+If an S-expression <S-exp> is a pair (<S-exp'> . <S-exp''>), and a
+pattern has the form (<pat'> . <pat''>), where <pat''> is not (), then
+<S-exp> matches <pat>, iff <S-exp'> matches <pat'> and <S-exp''>
 matches <pat''>.
 
-The fact that restricted patterns are less careful at examining 
-S-expressions than the ordinary patterns are, enables them to be 
+The fact that restricted patterns are less careful at examining
+S-expressions than the ordinary patterns are, enables them to be
 compiled into efficient code.
 
 
 RCALL
+
+   ::
 
         (RCALL (fname arg ...))
 
@@ -562,9 +591,10 @@ construct is equivalent to (fname arg ...).
 
 GENERALIZE
 
+   ::
+
         (GENERALIZE exp)
 
 This construct is used for telling the specializer that the result of
 specializing (GENERALIZE exp) must be dynamic even if exp is static. In
 all other respects this construct is equivalent to exp.
-
